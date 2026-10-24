@@ -1,0 +1,66 @@
+<ui:FluentWindow x:Class="Tidy.TrayFlyout"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Tidy" Width="380" SizeToContent="Height"
+                 ExtendsContentIntoTitleBar="True" WindowBackdropType="Acrylic" WindowCornerPreference="Round"
+                 ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True" WindowStyle="None">
+    <StackPanel Margin="18,16,18,16">
+        <!-- header -->
+        <Grid Margin="0,0,0,14">
+            <StackPanel Orientation="Horizontal">
+                <Image Source="pack://application:,,,/Assets/tidy.png" Width="22" Height="22" />
+                <TextBlock Text="Tidy" FontWeight="SemiBold" FontSize="15" Margin="8,0,0,0" VerticalAlignment="Center" />
+            </StackPanel>
+            <ui:Button HorizontalAlignment="Right" Appearance="Transparent" Padding="6" Icon="{ui:SymbolIcon Open24}" ToolTip="Abrir Tidy" Click="Open_Click" />
+        </Grid>
+
+        <!-- metrics -->
+        <UniformGrid Columns="2">
+            <Border Style="{StaticResource Tile}" Padding="14,12" Margin="0,0,5,10">
+                <StackPanel>
+                    <TextBlock Text="Procesador" Style="{StaticResource Muted}" />
+                    <TextBlock x:Name="Cpu" Text="—" FontSize="22" FontWeight="SemiBold" />
+                    <ProgressBar x:Name="CpuBar" Height="3" Maximum="100" Margin="0,8,0,0" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Tile}" Padding="14,12" Margin="5,0,0,10">
+                <StackPanel>
+                    <TextBlock Text="Memoria" Style="{StaticResource Muted}" />
+                    <TextBlock x:Name="Ram" Text="—" FontSize="22" FontWeight="SemiBold" />
+                    <ProgressBar x:Name="RamBar" Height="3" Maximum="100" Margin="0,8,0,0" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Tile}" Padding="14,12" Margin="0,0,5,0">
+                <StackPanel>
+                    <TextBlock Text="Gráfica" Style="{StaticResource Muted}" />
+                    <TextBlock x:Name="Gpu" Text="—" FontSize="22" FontWeight="SemiBold" />
+                    <ProgressBar x:Name="GpuBar" Height="3" Maximum="100" Margin="0,8,0,0" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Tile}" Padding="14,12" Margin="5,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="Temperatura GPU" Style="{StaticResource Muted}" />
+                    <TextBlock x:Name="Temp" Text="—" FontSize="22" FontWeight="SemiBold" />
+                    <ProgressBar x:Name="TempBar" Height="3" Maximum="100" Margin="0,8,0,0" />
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <ui:Button x:Name="BoostBtn" Appearance="Primary" HorizontalAlignment="Stretch" Padding="0,11" Margin="0,14,0,0" FontSize="14"
+                   Icon="{ui:SymbolIcon Flash24}" Content="Liberar memoria" Click="Boost_Click" />
+        <TextBlock x:Name="BoostResult" Style="{StaticResource Muted}" HorizontalAlignment="Center" Margin="0,6,0,0" Visibility="Collapsed" />
+
+        <TextBlock Text="Plan de energía" Style="{StaticResource Muted}" Margin="2,14,0,6" />
+        <UniformGrid x:Name="PlanButtons" Columns="3" />
+
+        <Separator Margin="0,14,0,10" />
+        <Grid>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="RAM automática" FontSize="13" />
+                <TextBlock x:Name="AutoNote" Style="{StaticResource Muted}" FontSize="11" />
+            </StackPanel>
+            <ui:ToggleSwitch x:Name="AutoRam" HorizontalAlignment="Right" Click="AutoRam_Click" />
+        </Grid>
+    </StackPanel>
+</ui:FluentWindow>

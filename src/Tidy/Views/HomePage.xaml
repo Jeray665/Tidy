@@ -1,0 +1,148 @@
+<Page x:Class="Tidy.Views.HomePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Inicio">
+    <StackPanel Margin="36,20,36,36">
+        <TextBlock x:Name="Greeting" Style="{StaticResource PageTitle}" Text="Hola" />
+        <TextBlock x:Name="Machine" Style="{StaticResource PageSubtitle}" Text=" " />
+
+        <!-- First run: invite to autostart -->
+        <Border x:Name="AutostartCard" Style="{StaticResource Tile}" Margin="0,18,0,0" Visibility="Collapsed" BorderBrush="{StaticResource BrandBrush}" BorderThickness="1.5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:SymbolIcon Symbol="Sparkle24" FontSize="26" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
+                    <TextBlock Text="Deja que Tidy cuide tu PC solo" FontWeight="SemiBold" FontSize="15" />
+                    <TextBlock Style="{StaticResource Muted}" FontSize="13" Margin="0,2,0,0"
+                               Text="Arranca con Windows en la bandeja y libera la RAM automáticamente cuando haga falta. Usa muy pocos recursos." />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:Button Content="Ahora no" Appearance="Transparent" Margin="0,0,8,0" Click="DismissAutostart_Click" />
+                    <ui:Button Content="Activar" Appearance="Primary" Click="EnableAutostart_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Health hero -->
+        <Border Style="{StaticResource Tile}" Margin="0,18,0,0" Padding="28,24">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid Width="136" Height="136">
+                    <ui:ProgressRing x:Name="ScoreRing" Width="136" Height="136" IsIndeterminate="True" Progress="0" />
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock x:Name="ScoreText" Text="" FontSize="40" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                        <TextBlock x:Name="ScoreOf" Text="de 100" Style="{StaticResource Muted}" HorizontalAlignment="Center" Visibility="Collapsed" />
+                    </StackPanel>
+                </Grid>
+                <StackPanel Grid.Column="1" Margin="32,0,16,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="ScoreTitle" Text="Analizando tu PC…" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock x:Name="ScoreSub" Style="{StaticResource Muted}" FontSize="14" Margin="0,6,0,0"
+                               Text="Revisando memoria, archivos innecesarios, arranque y drivers." />
+                </StackPanel>
+                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <ui:Button x:Name="OptimizeBtn" Appearance="Primary" Padding="28,14" FontSize="15" Click="Optimize_Click"
+                               Icon="{ui:SymbolIcon Sparkle24}" Content="Optimizar ahora" HorizontalAlignment="Stretch" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,0" HorizontalAlignment="Center"
+                               Text="Libera RAM y te enseña qué limpiar" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Live strip -->
+        <Grid Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <Border Style="{StaticResource Tile}" Margin="0,0,7,0">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="DeveloperBoard24" FontSize="16" /><TextBlock Text="  Procesador" Style="{StaticResource Muted}" /></StackPanel>
+                    <TextBlock x:Name="CpuText" Style="{StaticResource BigNumber}" Text="—" Margin="0,6,0,0" />
+                    <ProgressBar x:Name="CpuBar" Height="4" Margin="0,10,0,0" Maximum="100" />
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Style="{StaticResource Tile}" Margin="7,0">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="Board24" FontSize="16" /><TextBlock Text="  Memoria" Style="{StaticResource Muted}" /></StackPanel>
+                    <TextBlock x:Name="RamText" Style="{StaticResource BigNumber}" Text="—" Margin="0,6,0,0" />
+                    <ProgressBar x:Name="RamBar" Height="4" Margin="0,10,0,0" Maximum="100" />
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="2" Style="{StaticResource Tile}" Margin="7,0">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="Games24" FontSize="16" /><TextBlock Text="  Gráfica" Style="{StaticResource Muted}" /></StackPanel>
+                    <TextBlock x:Name="GpuText" Style="{StaticResource BigNumber}" Text="—" Margin="0,6,0,0" />
+                    <ProgressBar x:Name="GpuBar" Height="4" Margin="0,10,0,0" Maximum="100" />
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="3" Style="{StaticResource Tile}" Margin="7,0,0,0">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="Storage24" FontSize="16" /><TextBlock x:Name="DiskLabel" Text="  Disco C:" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis" /></StackPanel>
+                    <TextBlock x:Name="DiskText" Style="{StaticResource BigNumber}" Text="—" Margin="0,6,0,0" />
+                    <ProgressBar x:Name="DiskBar" Height="4" Margin="0,10,0,0" Maximum="100" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <TextBlock Text="Recomendaciones" Style="{StaticResource Section}" />
+        <ItemsControl x:Name="Suggestions">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Style="{StaticResource Tile}" Padding="18,14" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border Width="40" Height="40" CornerRadius="20" Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                <ui:SymbolIcon Symbol="{Binding Icon}" FontSize="20" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Detail}" Style="{StaticResource Muted}" Margin="0,2,0,0" />
+                            </StackPanel>
+                            <ui:Button Grid.Column="2" Content="{Binding Action}" Tag="{Binding Page}" Click="Suggestion_Click" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Border x:Name="AllGood" Style="{StaticResource Tile}" Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal">
+                <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="22" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                <TextBlock Text="  Todo en orden. No hay nada importante que mejorar ahora mismo." VerticalAlignment="Center" />
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="Herramientas" Style="{StaticResource Section}" />
+        <UniformGrid Columns="3">
+            <ui:CardAction Margin="0,0,7,12" Icon="{ui:SymbolIcon Broom24}" Tag="CleanerPage" Click="Tile_Click">
+                <StackPanel><TextBlock Text="Limpieza" FontWeight="SemiBold" /><TextBlock Text="Temporales, cachés y papelera" Style="{StaticResource Muted}" /></StackPanel>
+            </ui:CardAction>
+            <ui:CardAction Margin="7,0,7,12" Icon="{ui:SymbolIcon ArrowSync24}" Tag="DriversPage" Click="Tile_Click">
+                <StackPanel><TextBlock Text="Drivers" FontWeight="SemiBold" /><TextBlock x:Name="DriversSub" Text="Busca actualizaciones oficiales" Style="{StaticResource Muted}" /></StackPanel>
+            </ui:CardAction>
+            <ui:CardAction Margin="7,0,0,12" Icon="{ui:SymbolIcon TopSpeed24}" Tag="PerformancePage" Click="Tile_Click">
+                <StackPanel><TextBlock Text="Rendimiento" FontWeight="SemiBold" /><TextBlock x:Name="PlanSub" Text="Plan de energía y RAM" Style="{StaticResource Muted}" /></StackPanel>
+            </ui:CardAction>
+            <ui:CardAction Margin="0,0,7,0" Icon="{ui:SymbolIcon Wand24}" Tag="TweaksPage" Click="Tile_Click">
+                <StackPanel><TextBlock Text="Optimizaciones" FontWeight="SemiBold" /><TextBlock x:Name="TweaksSub" Text="Ajustes de Windows reversibles" Style="{StaticResource Muted}" /></StackPanel>
+            </ui:CardAction>
+            <ui:CardAction Margin="7,0,7,0" Icon="{ui:SymbolIcon Rocket24}" Tag="StartupPage" Click="Tile_Click">
+                <StackPanel><TextBlock Text="Inicio de Windows" FontWeight="SemiBold" /><TextBlock x:Name="StartupSub" Text="Apps que arrancan con el PC" Style="{StaticResource Muted}" /></StackPanel>
+            </ui:CardAction>
+            <ui:CardAction Margin="7,0,0,0" Icon="{ui:SymbolIcon DeveloperBoard24}" Tag="HardwarePage" Click="Tile_Click">
+                <StackPanel><TextBlock Text="Hardware" FontWeight="SemiBold" /><TextBlock Text="Tus componentes al detalle" Style="{StaticResource Muted}" /></StackPanel>
+            </ui:CardAction>
+        </UniformGrid>
+    </StackPanel>
+</Page>

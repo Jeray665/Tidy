@@ -1,0 +1,52 @@
+﻿<ui:FluentWindow x:Class="Tidy.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:v="clr-namespace:Tidy.Views"
+                 Title="Tidy" Width="1180" Height="780" MinWidth="920" MinHeight="620"
+                 WindowStartupLocation="CenterScreen"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="Tidy" ShowMaximize="True">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/Assets/tidy.png" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+
+        <ui:NavigationView x:Name="Nav" Grid.Row="1"
+                           PaneDisplayMode="Left" OpenPaneLength="232"
+                           IsBackButtonVisible="Collapsed" IsPaneToggleVisible="True"
+                           FrameMargin="0">
+            <ui:NavigationView.MenuItems>
+                <ui:NavigationViewItem Content="Inicio" TargetPageType="{x:Type v:HomePage}" Icon="{ui:SymbolIcon Home24}" />
+                <ui:NavigationViewItem Content="Rendimiento" TargetPageType="{x:Type v:PerformancePage}" Icon="{ui:SymbolIcon TopSpeed24}" />
+                <ui:NavigationViewItem Content="Limpieza" TargetPageType="{x:Type v:CleanerPage}" Icon="{ui:SymbolIcon Broom24}" />
+                <ui:NavigationViewItem Content="Almacenamiento" TargetPageType="{x:Type v:StoragePage}" Icon="{ui:SymbolIcon DataPie24}" />
+                <ui:NavigationViewItem Content="Aplicaciones" TargetPageType="{x:Type v:AppsPage}" Icon="{ui:SymbolIcon AppsList24}" />
+                <ui:NavigationViewItem Content="Drivers" TargetPageType="{x:Type v:DriversPage}" Icon="{ui:SymbolIcon ArrowSync24}" />
+                <ui:NavigationViewItem Content="Optimizaciones" TargetPageType="{x:Type v:TweaksPage}" Icon="{ui:SymbolIcon Wand24}" />
+                <ui:NavigationViewItem Content="Servicios y tareas" TargetPageType="{x:Type v:ServicesPage}" Icon="{ui:SymbolIcon Settings24}" />
+                <ui:NavigationViewItem Content="Red" TargetPageType="{x:Type v:NetworkPage}" Icon="{ui:SymbolIcon Globe24}" />
+                <ui:NavigationViewItem Content="Inicio de Windows" TargetPageType="{x:Type v:StartupPage}" Icon="{ui:SymbolIcon Rocket24}" />
+                <ui:NavigationViewItem Content="Seguridad" TargetPageType="{x:Type v:SecurityPage}" Icon="{ui:SymbolIcon Shield24}" />
+                <ui:NavigationViewItem Content="Herramientas" TargetPageType="{x:Type v:ToolsPage}" Icon="{ui:SymbolIcon WrenchScrewdriver24}" />
+                <ui:NavigationViewItem Content="Hardware" TargetPageType="{x:Type v:HardwarePage}" Icon="{ui:SymbolIcon DeveloperBoard24}" />
+            </ui:NavigationView.MenuItems>
+            <ui:NavigationView.FooterMenuItems>
+                <ui:NavigationViewItem Content="Historial" TargetPageType="{x:Type v:HistoryPage}" Icon="{ui:SymbolIcon History24}" />
+                <ui:NavigationViewItem Content="Copias de seguridad" TargetPageType="{x:Type v:BackupsPage}" Icon="{ui:SymbolIcon ShieldCheckmark24}" />
+                <ui:NavigationViewItem Content="Ajustes" TargetPageType="{x:Type v:SettingsPage}" Icon="{ui:SymbolIcon Options24}" />
+            </ui:NavigationView.FooterMenuItems>
+        </ui:NavigationView>
+
+        <ui:ContentDialogHost x:Name="DialogHost" Grid.Row="0" Grid.RowSpan="2" />
+        <ui:SnackbarPresenter x:Name="Snackbar" Grid.Row="1" VerticalAlignment="Bottom" Margin="24" />
+    </Grid>
+</ui:FluentWindow>

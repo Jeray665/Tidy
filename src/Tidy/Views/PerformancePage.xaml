@@ -1,0 +1,104 @@
+<Page x:Class="Tidy.Views.PerformancePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:v="clr-namespace:Tidy.Views"
+      Title="Rendimiento">
+    <StackPanel Margin="36,20,36,36">
+        <TextBlock Text="Rendimiento" Style="{StaticResource PageTitle}" />
+        <TextBlock Style="{StaticResource PageSubtitle}" Text="Lo que está pasando ahora mismo en tu PC y cómo sacarle más partido." />
+
+        <Grid Margin="0,18,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <v:Sparkline x:Name="CpuChart" Title="Procesador" Margin="0,0,7,0" />
+            <v:Sparkline x:Name="RamChart" Grid.Column="1" Title="Memoria" Margin="7,0" />
+            <v:Sparkline x:Name="GpuChart" Grid.Column="2" Title="Gráfica" Margin="7,0,0,0" />
+        </Grid>
+
+        <TextBlock Text="Memoria RAM" Style="{StaticResource Section}" />
+        <Border Style="{StaticResource Tile}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Memoria en espera" FontWeight="SemiBold" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,8"
+                                   Text="Windows guarda en caché archivos que ya usaste. Normalmente ayuda, pero si se come la memoria libre los juegos dan tirones. Liberarla es seguro: no cierra nada ni pierde datos." />
+                        <TextBlock x:Name="ListsText" FontSize="13" />
+                    </StackPanel>
+                    <ui:Button x:Name="PurgeBtn" Grid.Column="1" Appearance="Primary" Icon="{ui:SymbolIcon Flash24}" Content="Liberar ahora"
+                               VerticalAlignment="Center" Margin="16,0,0,0" Padding="18,10" Click="Purge_Click" />
+                </Grid>
+                <Separator Margin="0,16" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Liberación automática" FontWeight="SemiBold" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
+                                   Text="Tidy vigila en segundo plano y libera la memoria en espera solo cuando la memoria libre de verdad baja del límite (como ISLC). Como mucho una vez cada 2 minutos." />
+                    </StackPanel>
+                    <ui:ToggleSwitch x:Name="AutoRam" Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0" Click="AutoRam_Click" />
+                </Grid>
+                <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Liberar cuando la memoria libre baje de" VerticalAlignment="Center" Style="{StaticResource Muted}" FontSize="13" />
+                    <Slider x:Name="Threshold" Grid.Column="1" Minimum="512" Maximum="8192" TickFrequency="512" IsSnapToTickEnabled="True"
+                            Margin="16,0" VerticalAlignment="Center" ValueChanged="Threshold_Changed" />
+                    <TextBlock x:Name="ThresholdText" Grid.Column="2" FontWeight="SemiBold" VerticalAlignment="Center" MinWidth="60" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="Plan de energía" Style="{StaticResource Section}" />
+        <UniformGrid x:Name="Plans" Columns="4" />
+        <TextBlock x:Name="OtherPlansNote" Style="{StaticResource Muted}" Margin="2,8,0,0" Visibility="Collapsed" />
+
+        <TextBlock Text="Modo juego automático" Style="{StaticResource Section}" />
+        <Border Style="{StaticResource Tile}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="GameBadge" Width="44" Height="44" CornerRadius="22" Background="{DynamicResource ControlFillColorSecondaryBrush}" VerticalAlignment="Top">
+                        <ui:SymbolIcon Symbol="Games24" FontSize="22" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="14,0,16,0">
+                        <TextBlock Text="Detectar cuándo juegas" FontWeight="SemiBold" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
+                                   Text="Al abrir un juego, Tidy le da prioridad al PC. Al cerrarlo, todo vuelve exactamente a como estaba. No cambia nada del juego ni de Windows de forma permanente." />
+                        <TextBlock x:Name="GameStatus" Margin="0,8,0,0" FontWeight="SemiBold" />
+                    </StackPanel>
+                    <ui:ToggleSwitch x:Name="GameAuto" Grid.Column="2" VerticalAlignment="Top" Click="GameAuto_Click" />
+                </Grid>
+                <Separator Margin="0,14" />
+                <TextBlock Text="Qué hace mientras juegas" FontWeight="SemiBold" Margin="0,0,0,6" />
+                <CheckBox x:Name="GamePlan" Click="GameOption_Click" Content="Usar el plan &quot;Máximo rendimiento&quot; (y volver al tuyo al salir)" />
+                <CheckBox x:Name="GameRam" Click="GameOption_Click" Content="Liberar la memoria en espera al empezar a jugar" />
+                <CheckBox x:Name="GamePriority" Click="GameOption_Click" />
+                <Separator Margin="0,14" />
+                <Grid>
+                    <TextBlock Text="Dónde busca juegos" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <ui:Button Content="Añadir juego…" Icon="{ui:SymbolIcon Add24}" HorizontalAlignment="Right" Click="AddGame_Click"
+                               ToolTip="Para juegos instalados fuera de Steam, Epic, GOG, Ubisoft, EA, Riot o Xbox" />
+                </Grid>
+                <TextBlock x:Name="GameLibraries" Style="{StaticResource Muted}" Margin="0,6,0,0" TextWrapping="Wrap" />
+                <StackPanel x:Name="GameExes" Margin="0,6,0,0" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</Page>

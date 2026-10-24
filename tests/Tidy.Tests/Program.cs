@@ -1,0 +1,272 @@
+// Safety checks for Tidy's core. Everything destructive runs inside a throwaway sandbox folder and a
+// throwaway HKCU\Software\TidyTest key. Usage: Tidy.Tests <sandboxDir> [--wu]
+using System.Diagnostics;
+using System.Text;
+using Microsoft.Win32;
+using Tidy.Core;
+
+var sandbox = Path.GetFullPath(args.Length > 0 ? args[0] : Path.Combine(Path.GetTempPath(), "tidy-tests"));
+if (Directory.Exists(sandbox)) Cleaner.DeleteTree(sandbox);
+Directory.CreateDirectory(sandbox);
+Store.Dir = Path.Combine(sandbox, "store");
+Store.SecureDir = Path.Combine(sandbox, "secure"); // first thing: no test may touch the real Program Files\Tidy\datos
+int failed = 0;
+void Check(bool ok, string what) { Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {what}"); if (!ok) failed++; }
+
+// ---- NVIDIA version parsing ----
+Check(Drivers.NvidiaVersion("32.0.16.1742") == "617.42", "NVIDIA 32.0.16.1742 -> 617.42");
+Check(Drivers.NvidiaVersion("32.0.15.7652") == "576.52", "NVIDIA 32.0.15.7652 -> 576.52");
+
+// ---- Recycle bin $I parsing (v2) ----
+var orig = @"C:\Users\x\Documents\informe.docx";
+var info = new List<byte>();
+info.AddRange(BitConverter.GetBytes(2L)); info.AddRange(BitConverter.GetBytes(12345L)); info.AddRange(BitConverter.GetBytes(0L));
+info.AddRange(BitConverter.GetBytes(orig.Length + 1)); info.AddRange(Encoding.Unicode.GetBytes(orig + "\0"));
+Check(Cleaner.ParseRecycleInfo(info.ToArray()) == (12345L, orig), "papelera: lee tamaño y ruta original de $I");
+
+// ---- Allowlist ----
+Check(Cleaner.IsUnder(@"C:\Temp\a.txt", [@"C:\Temp"]), "lista blanca: archivo dentro de la raíz");
+Check(!Cleaner.IsUnder(@"C:\Temp2\a.txt", [@"C:\Temp"]), "lista blanca: carpeta hermana con prefijo parecido NO");
+Check(!Cleaner.IsUnder(@"C:\Temp\..\Windows\win.ini", [@"C:\Temp"]), "lista blanca: escapar con .. NO");
+Check(!Cleaner.IsUnder(@"C:\Temp", [@"C:\Temp\"]), "lista blanca: la raíz misma NO");
+
+// ---- Cleaner: age filter, junctions, out-of-root ----
+var root = Path.Combine(sandbox, "cache");
+var outside = Path.Combine(sandbox, "precious");
+Directory.CreateDirectory(Path.Combine(root, "sub"));
+Directory.CreateDirectory(outside);
+string F(string p, int ageDays)
+{
+    File.WriteAllText(p, "x");
+    File.SetCreationTime(p, DateTime.Now.AddDays(-ageDays));
+    File.SetLastWriteTime(p, DateTime.Now.AddDays(-ageDays));
+    return p;
+}
+// just copied/extracted (e.g. by an installer running right now): old modified date, brand-new creation date
+var copied = Path.Combine(root, "just-extracted.dll");
+File.WriteAllText(copied, "x");
+File.SetLastWriteTime(copied, DateTime.Now.AddYears(-1));
+var oldFile = F(Path.Combine(root, "old.tmp"), 3);
+var newFile = F(Path.Combine(root, "new.tmp"), 0);
+var oldSub = F(Path.Combine(root, "sub", "old2.tmp"), 3);
+var victim = F(Path.Combine(outside, "victim.txt"), 3);
+var roFile = F(Path.Combine(root, "readonly.tmp"), 3);
+File.SetAttributes(roFile, FileAttributes.ReadOnly);
+var junction = Path.Combine(root, "link");
+Process.Start(new ProcessStartInfo("cmd.exe", $"/c mklink /J \"{junction}\" \"{outside}\"") { CreateNoWindow = true, UseShellExecute = false })!.WaitForExit();
+Check(Directory.Exists(junction) && File.GetAttributes(junction).HasFlag(FileAttributes.ReparsePoint), "sandbox: junction creado hacia carpeta externa");
+
+var cat = new CleanCategory { Id = "t", Name = "t", Description = "", Icon = "", MinAge = TimeSpan.FromHours(24), Roots = () => [root] };
+var scan = Cleaner.Scan(cat);
+var found = scan.Items.Select(i => i.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+Check(found.Contains(oldFile) && found.Contains(oldSub) && found.Contains(roFile), "escaneo: encuentra archivos viejos (incl. subcarpetas y solo-lectura)");
+Check(!found.Contains(newFile), "escaneo: ignora archivos de menos de 24 h");
+Check(!found.Contains(copied), "escaneo: ignora archivos recién copiados aunque su fecha de modificación sea antigua");
+Check(!found.Any(p => p.Contains("victim")), "escaneo: NO entra en el junction");
+
+// planted item outside the roots must be refused even if someone sneaks it into the confirmed list
+scan.Items.Add(new CleanItem { Path = victim, Display = victim, Size = 1 });
+var report = Cleaner.Clean([scan]);
+Check(!File.Exists(oldFile) && !File.Exists(oldSub) && !File.Exists(roFile), "limpieza: borra los archivos confirmados");
+Check(File.Exists(newFile), "limpieza: archivo reciente intacto");
+Check(File.Exists(victim), "limpieza: archivo fuera de la lista blanca INTACTO");
+Check(Directory.Exists(junction) && File.Exists(Path.Combine(junction, "victim.txt")), "limpieza: junction y su destino intactos");
+Check(report.Deleted == 3 && report.Skipped == 1, $"limpieza: informe correcto ({report.Deleted} borrados, {report.Skipped} omitidos)");
+Check(File.ReadAllText(report.ListFile).Contains("old.tmp"), "limpieza: guarda la lista de lo borrado");
+
+// recycle-bin style dir item containing a junction: delete must not follow it
+var rb = Path.Combine(sandbox, "rb"); var payload = Path.Combine(rb, "$RABC123");
+Directory.CreateDirectory(payload); F(Path.Combine(payload, "f.txt"), 0);
+Process.Start(new ProcessStartInfo("cmd.exe", $"/c mklink /J \"{Path.Combine(payload, "j")}\" \"{outside}\"") { CreateNoWindow = true, UseShellExecute = false })!.WaitForExit();
+var rbScan = new ScanResult { Category = new CleanCategory { Id = "r", Name = "r", Description = "", Icon = "", RecycleBin = true, Roots = () => [rb] } };
+rbScan.Roots.Add(rb);
+rbScan.Items.Add(new CleanItem { Path = payload, Display = payload, IsDir = true, Size = 1 });
+Cleaner.Clean([rbScan]);
+Check(!Directory.Exists(payload), "papelera: borra la carpeta que contiene un junction");
+Check(File.Exists(victim), "papelera: NO sigue el junction de dentro (destino intacto)");
+
+// ---- Tweaks: backup / undo restores the exact original state ----
+const string testKey = @"HKCU\Software\TidyTest";
+Registry.CurrentUser.DeleteSubKeyTree(@"Software\TidyTest", false);
+using (var k = Registry.CurrentUser.CreateSubKey(@"Software\TidyTest")) { k.SetValue("Existing", 5, RegistryValueKind.DWord); k.SetValue("Text", "hola"); }
+var tw = new Tweak
+{
+    Id = "test", Group = "t", Title = "t", Description = "", Icon = "",
+    Ops = [new(testKey, "Existing", 1, 0), new(testKey, "Text", "adios", "x"), new(testKey, "Missing", 7, null)],
+};
+Check(!Tweaks.IsApplied(tw), "tweak: no aplicado al inicio");
+Tweaks.Apply(tw);
+Check(Tweaks.IsApplied(tw), "tweak: aplicado");
+Check(File.Exists(Path.Combine(Store.Dir, "tweaks-backup.json")), "tweak: copia de seguridad en disco");
+Tweaks.Apply(tw); // applying twice must not overwrite the original backup
+Tweaks.Revert(tw);
+Check(Equals(Tweaks.Read(testKey, "Existing"), 5) && Equals(Tweaks.Read(testKey, "Text"), "hola") && Tweaks.Read(testKey, "Missing") == null,
+      "tweak: deshacer restaura valores originales exactos (y borra el que no existía)");
+// tampered backup (it lives in a user-writable folder): undo must not write values the tweak doesn't own
+Tweaks.Apply(tw);
+var bpath = Path.Combine(Store.Dir, "tweaks-backup.json");
+File.WriteAllText(bpath, File.ReadAllText(bpath).Replace("\"test\": [", "\"test\": [{\"Key\":\"HKCU\\\\Software\\\\TidyTest\",\"Name\":\"Evil\",\"Kind\":\"dword\",\"Value\":\"1\"},"));
+Check(File.ReadAllText(bpath).Contains("Evil"), "sandbox: copia de seguridad manipulada");
+Tweaks.Revert(tw);
+Check(Tweaks.Read(testKey, "Evil") == null, "tweak: valor inyectado en la copia de seguridad BLOQUEADO");
+Check(Equals(Tweaks.Read(testKey, "Existing"), 5), "tweak: los valores legítimos se restauran igualmente");
+Registry.CurrentUser.DeleteSubKeyTree(@"Software\TidyTest", false);
+try { Tweaks.Read(@"HKCR\x", "y"); Check(false, "tweak: hive no permitido rechazado"); }
+catch (ArgumentException) { Check(true, "tweak: hive no permitido rechazado"); }
+
+// ---- Authenticode ----
+var dotnet = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"dotnet\dotnet.exe");
+Check(Drivers.IsSignedBy(dotnet, "Microsoft Corporation"), "firma: dotnet.exe válido y firmado por Microsoft");
+Check(!Drivers.IsSignedBy(dotnet, "NVIDIA Corporation"), "firma: dotnet.exe NO pasa como NVIDIA");
+var tampered = Path.Combine(sandbox, "tampered.exe");
+var bytes = File.ReadAllBytes(dotnet); bytes[bytes.Length / 3] ^= 0xFF; File.WriteAllBytes(tampered, bytes);
+Check(!Drivers.IsSignedBy(tampered, "Microsoft Corporation"), "firma: ejecutable manipulado RECHAZADO");
+
+// ---- Tweak catalog sanity ----
+var ids = Tweaks.All.Select(t => t.Id).ToList();
+Check(ids.Distinct().Count() == ids.Count, $"catálogo: {ids.Count} optimizaciones con id único");
+var ops = Tweaks.All.SelectMany(t => t.Ops.Select(o => (t.Id, Key: o.Key.ToLowerInvariant(), Name: o.Name.ToLowerInvariant()))).ToList();
+var shared = ops.GroupBy(o => (o.Key, o.Name)).Where(g => g.Select(o => o.Id).Distinct().Count() > 1).Select(g => $"{g.Key.Key}\\{g.Key.Name}").ToList();
+Check(shared.Count == 0, "catálogo: ningún valor del registro lo tocan dos optimizaciones (deshacer una no rompe otra) " + string.Join(", ", shared));
+Check(Tweaks.All.SelectMany(t => t.Ops).All(o => o.Key.StartsWith(@"HKCU\") || o.Key.StartsWith(@"HKLM\")), "catálogo: solo HKCU/HKLM");
+Check(Tweaks.All.SelectMany(t => t.Ops).All(o => o.Value is int or string && (o.Default == null || o.Default.GetType() == o.Value.GetType())), "catálogo: tipos de valor coherentes con el original");
+Check(!Tweaks.All.Any(t => t.Risk == Risk.Advanced && t.Recommended), "catálogo: nada avanzado entra en 'recomendadas'");
+Check(Tweaks.All.All(t => t.Ops.Length > 0 || (t.Check != null && t.CustomApply != null && t.CustomRevert != null)), "catálogo: todo lo personalizado se puede comprobar y deshacer");
+string[] forbidden = ["enablelua", "disableantispyware", "disablerealtimemonitoring", "enablevirtualizationbasedsecurity", "hypervisorenforcedcodeintegrity",
+                      "featuresettingsoverride", "smartscreenenabled", "enablesmartscreen", "noautoupdate", "auoptions", "disablewindowsupdateaccess", "consentpromptbehavioradmin"];
+Check(!ops.Any(o => forbidden.Contains(o.Name)), "catálogo: NINGUNA optimización baja la seguridad (UAC, Defender, SmartScreen, VBS, mitigaciones, Windows Update)");
+Check(Tweaks.Presets.All(p => Tweaks.All.Where(t => t.Recommended).All(p.Includes)), "perfiles: todos incluyen las recomendadas");
+Check(Tweaks.FromProfile(new Tweaks.Profile { Tweaks = ["no-existe", "../evil"] }).Count == 0, "importar: ids desconocidos se ignoran");
+
+// ---- Services / tasks guards ----
+Check(Services.IsProtected("WinDefend", "") && Services.IsProtected("RpcSs", "") && Services.IsProtected("wuauserv", "") && Services.IsProtected("Appinfo", ""), "servicios: críticos protegidos (Defender, RPC, Update, UAC)");
+Check(Services.IsProtected("cbdhsvc_1a2b3", ""), "servicios: instancias por usuario protegidas");
+Check(!Services.IsProtected("SysMain", "Automático"), "servicios: SysMain sí se puede cambiar");
+File.WriteAllText(Path.Combine(Directory.CreateDirectory(Store.SecureDir).FullName, "services-backup.json"),
+    "{\"SysMain\":{\"Start\":0,\"Delayed\":0},\"WinDefend\":{\"Start\":4,\"Delayed\":0}}");
+Check(!Services.Restore("SysMain") && !Services.Restore("WinDefend"), "servicios: copia manipulada (arranque de sistema / desactivar Defender) RECHAZADA");
+File.Delete(Path.Combine(Store.SecureDir, "services-backup.json"));
+Check(!ScheduledTasks.CanChange(@"\Microsoft\Windows\UpdateOrchestrator\Schedule Scan"), "tareas: las de Windows Update son de solo lectura");
+Check(ScheduledTasks.CanChange(ScheduledTasks.TelemetryTasks[0]) && ScheduledTasks.CanChange(@"\GoogleUpdateTaskMachineCore"), "tareas: telemetría y de terceros sí se pueden cambiar");
+
+// ---- Uninstaller ----
+Check(Uninstaller.BaseName("7-Zip 24.08 (x64)") == "7-Zip" && Uninstaller.BaseName("Discord") == "Discord" && Uninstaller.BaseName("VLC media player 3.0.21") == "VLC media player",
+      "desinstalador: nombre base sin versión ni arquitectura");
+Check(Uninstaller.CleanPublisher("Valve Corporation") == "Valve" && Uninstaller.CleanPublisher("Discord Inc.") == "Discord", "desinstalador: fabricante sin sufijos legales");
+var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+var up = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+Check(new[] { @"C:\", @"C:\Windows", @"C:\Windows\System32\drivers", pf, Path.Combine(pf, "Common Files"), @"C:\Users", up,
+              Path.Combine(up, @"AppData\Roaming"), Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), Path.Combine(up, "Downloads") }
+          .All(Uninstaller.IsProtectedPath), "desinstalador: nunca ofrece C:\\, Windows, Program Files, Common Files, Usuarios, tu perfil, AppData, Documentos ni Descargas");
+Check(!Uninstaller.IsProtectedPath(Path.Combine(pf, "AlgunaApp")), "desinstalador: Program Files\\AlgunaApp sí");
+Check(Uninstaller.IsAllowedKey(@"HKCU\Software\Discord") && Uninstaller.IsAllowedKey(@"HKLM64\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{ABC}"), "desinstalador: claves de la app y su entrada de desinstalación sí");
+Check(new[] { @"HKCU\Software\Microsoft", @"HKLM64\SOFTWARE\Classes", @"HKCU\Software", @"HKLM64\SYSTEM\CurrentControlSet", @"HKCU\Software\Policies",
+              @"HKLM64\SOFTWARE\Microsoft\Windows\CurrentVersion\Run", @"HKCU\Software\..\x" }.All(k => !Uninstaller.IsAllowedKey(k)), "desinstalador: claves de sistema RECHAZADAS");
+Check(Uninstaller.SplitCommand($"\"{Path.Combine(Environment.SystemDirectory, "notepad.exe")}\" /x", out var ue, out var ua) && ua == "/x" && ue.EndsWith("notepad.exe"), "desinstalador: separa ejecutable y argumentos");
+Check(!Uninstaller.SplitCommand(@"C:\no\existe.exe /S", out _, out _), "desinstalador: desinstalador inexistente no se ejecuta");
+
+var appDir = Path.Combine(sandbox, "TidyFakeApp123");
+Directory.CreateDirectory(Path.Combine(appDir, "bin"));
+File.WriteAllText(Path.Combine(appDir, "bin", "app.dll"), "dll");
+var outsideVictim = Path.Combine(sandbox, "precious", "keep.txt");
+Directory.CreateDirectory(Path.GetDirectoryName(outsideVictim)!); File.WriteAllText(outsideVictim, "no me borres");
+Process.Start("cmd.exe", $"/c mklink /J \"{Path.Combine(appDir, "link")}\" \"{Path.GetDirectoryName(outsideVictim)}\"")!.WaitForExit();
+using (var k = Registry.CurrentUser.CreateSubKey(@"Software\TidyFakeApp123")) k.SetValue("Setting", "1");
+var fake = new InstalledProgram { Name = "TidyFakeApp123 1.2.3 (x64)", Publisher = "Tidy Test Corp", InstallLocation = appDir, UninstallString = "" };
+var left = Uninstaller.FindLeftovers(fake);
+Check(left.Any(l => l.Kind == LeftoverKind.Folder && l.Target == appDir), "desinstalador: encuentra la carpeta de instalación");
+Check(left.Any(l => l.Kind == LeftoverKind.RegKey && l.Target == @"HKCU\Software\TidyFakeApp123"), "desinstalador: encuentra su clave del registro");
+Check(left.Where(l => l.Kind is LeftoverKind.Folder or LeftoverKind.File).All(l => l.Target.StartsWith(sandbox)), "desinstalador: no propone nada fuera de la app");
+var q = Uninstaller.Remove(fake.Name, left);
+Check(!Directory.Exists(appDir) && Registry.CurrentUser.OpenSubKey(@"Software\TidyFakeApp123") == null, "desinstalador: restos movidos a cuarentena");
+Check(File.Exists(outsideVictim), "desinstalador: NO sigue el junction de dentro (lo de fuera intacto)");
+Check(Uninstaller.Quarantines().Any(x => x.Id == q.Id), "desinstalador: la cuarentena aparece en Copias de seguridad");
+var (rok, rfail) = Uninstaller.Restore(q);
+Check(rfail == 0 && File.Exists(Path.Combine(appDir, "bin", "app.dll")) && Equals(Registry.CurrentUser.OpenSubKey(@"Software\TidyFakeApp123")?.GetValue("Setting"), "1"),
+      $"desinstalador: RESTAURAR devuelve archivos y registro ({rok} elementos)");
+Registry.CurrentUser.DeleteSubKeyTree(@"Software\TidyFakeApp123", false);
+var bad = new InstalledProgram { Name = "Users", Publisher = "Microsoft", InstallLocation = @"C:\Users", UninstallString = "" };
+Check(!Uninstaller.FindLeftovers(bad).Any(l => l.Kind == LeftoverKind.Folder && l.Target.TrimEnd('\\').Equals(@"C:\Users", StringComparison.OrdinalIgnoreCase)),
+      "desinstalador: una app con InstallLocation = C:\\Users NO lo propone");
+
+// ---- Storage ----
+Check(Storage.IsProtected(@"C:\Windows\win.ini") && Storage.IsProtected(@"C:\pagefile.sys") && Storage.IsProtected(Path.Combine(pf, @"X\y.exe")), "almacenamiento: Windows, pagefile y programas protegidos");
+var dupDir = Path.Combine(sandbox, "dups");
+Directory.CreateDirectory(Path.Combine(dupDir, "a"));
+var blob = new byte[300_000]; new Random(1).NextBytes(blob);
+foreach (var p in new[] { "1.bin", "2.bin", @"a\3.bin" }) File.WriteAllBytes(Path.Combine(dupDir, p), blob);
+var other = (byte[])blob.Clone(); other[^1] ^= 1; File.WriteAllBytes(Path.Combine(dupDir, "distinto.bin"), other);
+var groups = Storage.Duplicates([dupDir], 1, null, CancellationToken.None);
+Check(groups.Count == 1 && groups[0].Files.Count == 3, "duplicados: 3 copias idénticas agrupadas, el que difiere en 1 byte NO");
+var (rec, skip) = Storage.Recycle([new FoundFile(@"C:\Windows\win.ini", 1, DateTime.Now, false)]);
+Check(rec == 0 && skip == 1 && File.Exists(@"C:\Windows\win.ini"), "almacenamiento: archivo de Windows RECHAZADO aunque venga marcado como no protegido");
+
+// ---- Processes / network ----
+var procs = Processes.List();
+Check(procs.Count > 10, $"procesos: {procs.Count} programas listados");
+var crit = procs.FirstOrDefault(p => p.Name.Equals("csrss", StringComparison.OrdinalIgnoreCase)) ?? new ProcInfo(0, "csrss", "", null, 0, 0, true, 1);
+Check(crit.Critical && Processes.Close(crit).Closed == 0, "procesos: csrss es crítico y no se cierra");
+Check(Network.Providers.SelectMany(p => p.Servers).All(s => System.Net.IPAddress.TryParse(s, out _)), "dns: todas las direcciones son IPs válidas");
+
+// ---- winget parsing and input checks (nothing is installed) ----
+var sample = "\r-\r\\\r\nNombre                Id                    Versión         Disponible     Origen\r\n" +
+             "---------------------------------------------------------------------------------\r\n" +
+             "Git                   Git.Git               2.54.0          2.56.0.3       winget\r\n" +
+             "Ubisoft Connect       Ubisoft.Connect       < 174.2.0.13389 174.2.0.13389  winget\r\n" +
+             "Algo raro             ARP\\Machine\\X64\\{1}  1.0             2.0            winget\r\n" +
+             "38 actualizaciones disponibles.\r\n" +
+             "3 paquete(s) tienen números de versión que no se pueden determinar. Use --include-unknown para ver todos los resultados.\r\n";
+var parsed = Winget.Table(sample);
+Check(parsed.Count == 2 && parsed[0] is { Id: "Git.Git", Version: "2.54.0", Available: "2.56.0.3", Source: "winget" } && parsed[1].Version == "< 174.2.0.13389",
+    $"winget: tabla leída bien ({string.Join(", ", parsed.Select(p => p.Id))}), pie y entradas ARP ignorados");
+Check(Winget.Table("Nada").Count == 0, "winget: salida sin tabla = lista vacía");
+Check(Winget.Search("foo\" & calc.exe & \"").Count == 0 && Winget.Install("Evil\" --override \"x", "winget").Ok == false && Winget.Install("Git.Git", "file://x").Ok == false,
+    "winget: búsquedas, ids u orígenes con comillas o raros RECHAZADOS antes de llamar a winget");
+Check(Winget.Catalog.Select(a => a.Id).Distinct().Count() == Winget.Catalog.Length, $"winget: catálogo de {Winget.Catalog.Length} apps sin duplicados");
+
+// ---- history (sandboxed secure folder) ----
+History.Add(HistoryKind.Tweak, "Prueba", "detalle", "tweak:test");
+var hist = History.All();
+Check(hist.Count > 0 && hist[0].Title == "Prueba" && File.Exists(Path.Combine(Store.SecureDir, "history.json")), "historial: entrada guardada en la carpeta protegida");
+Check(hist.Any(h => h.Title.StartsWith("Activada:")) && hist.Any(h => h.Title.StartsWith("Deshecha:")), "historial: las optimizaciones de las pruebas quedaron apuntadas");
+
+// ---- game mode detection (no game is started) ----
+var fakeGame = Path.Combine(sandbox, "MiJuego.exe");
+File.WriteAllBytes(fakeGame, []);
+Store.Settings.GameExes.Add(fakeGame);
+Check(GameMode.GameName(fakeGame) == "MiJuego" && GameMode.GameName(@"C:\Windows\notepad.exe") == null, "modo juego: reconoce un juego añadido a mano y no el Bloc de notas");
+Store.Settings.GameExes.Clear();
+var libs = GameMode.Libraries();
+Console.WriteLine($"INFO  Bibliotecas de juegos: {string.Join(" | ", libs.Select(l => $"{l.Launcher} {l.Root}"))}");
+
+// ---- read-only security review and measurements ----
+var sec = SecurityStatus.Run();
+Check(sec.Count == 13, $"seguridad: {sec.Count} comprobaciones ejecutadas sin errores");
+foreach (var c in sec) Console.WriteLine($"INFO  Seguridad {c.State,-8} {c.Title}: {c.Detail}");
+var disks = SecurityStatus.DiskStatus(fresh: true);
+Check(disks.Count > 0, $"discos: {string.Join(", ", disks.Select(d => $"{d.Name} ({d.Letters}) {d.Health}"))}");
+var m1 = Benchmark.Measure("Primera");
+var m2 = Benchmark.Measure("Segunda");
+Check(Benchmark.All() is { Count: 2 } ms && ms[0].Label == "Primera" && m2.Processes > 10, $"mediciones: guardadas ({m2.Processes} procesos, {m2.RamUsedGb} GB RAM, arranque {m2.BootSec?.ToString("0.0") ?? "?"} s)");
+
+// ---- Read-only probes of the real system ----
+SysMon.Cpu(); Thread.Sleep(500);
+var ram = SysMon.Ram();
+Console.WriteLine($"INFO  CPU {SysMon.Cpu():0}%  RAM {ram.Pct}% ({ram.UsedGb:0.0}/{ram.TotalGb:0.0} GB)  listas {Memory.Lists()}");
+Console.WriteLine($"INFO  GPU {SysMon.Gpu()}");
+Console.WriteLine($"INFO  Planes: {string.Join(" | ", PowerPlan.All().Select(p => p.Name + (p.Active ? "*" : "")))}");
+Console.WriteLine($"INFO  Hardware: {string.Join(" | ", Hardware.Read().Select(s => s.Headline))}");
+var inv = Drivers.Inventory();
+Console.WriteLine($"INFO  Drivers de terceros: {inv.Count}  (ej. {string.Join(", ", inv.Take(3).Select(d => d.Device + " " + d.Version))})");
+Console.WriteLine($"INFO  Apps de inicio: {string.Join(", ", StartupApps.List().Select(a => a.Name + (a.Enabled ? "" : "(off)")))}");
+Console.WriteLine($"INFO  Tweaks aplicados ya: {string.Join(", ", Tweaks.All.Where(Tweaks.IsApplied).Select(t => t.Id))}");
+var nv = await Drivers.CheckNvidia();
+Console.WriteLine($"INFO  NVIDIA: {(nv == null ? "al día / no hay" : $"{nv.CurrentVersion} -> {nv.NewVersion} ({nv.NewDateText}) {nv.DownloadUrl}")}");
+foreach (var c in Cleaner.Categories) { var r = Cleaner.Scan(c); Console.WriteLine($"INFO  Limpieza {c.Name}: {r.Items.Count} elementos, {Store.FormatBytes(r.Bytes)} {r.Note}"); }
+if (args.Contains("--wu"))
+    foreach (var u in Drivers.SearchWindowsUpdate(inv)) Console.WriteLine($"INFO  WU: {u.Device} {u.CurrentVersion} -> {u.NewVersion} ({u.Size})");
+
+foreach (var line in File.ReadLines(Store.LogPath).Where(l => l.Contains("Drivers"))) Console.WriteLine($"LOG   {line}");
+Cleaner.DeleteTree(sandbox);
+Console.WriteLine(failed == 0 ? "\nTODO OK" : $"\n{failed} FALLOS");
+return failed;
