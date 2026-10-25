@@ -279,6 +279,22 @@ Check(rel != null && Rejects(() => Updater.Verify(tidyExe, rel, new string('0', 
 Check(rel != null && Rejects(() => Updater.Verify(tidyExe, rel with { Size = rel.Size + 1 }, exeHash)), "actualizar: rechaza si el tamaño no coincide");
 var notepad = Path.Combine(Environment.SystemDirectory, "notepad.exe");
 Check(rel != null && Rejects(() => Updater.Verify(notepad, rel with { Size = new FileInfo(notepad).Length }, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(notepad))))), "actualizar: rechaza un .exe que no es Tidy aunque la huella cuadre");
+var pb = Updater.FromRedirect("https://github.com/Jeray665/Tidy/releases/tag/v1.2.0", 123);
+Check(pb != null && pb.Version == new Version(1, 2, 0) && pb.DownloadUrl == "https://github.com/Jeray665/Tidy/releases/download/v1.2.0/Tidy-Setup.exe"
+      && pb.Sha256 == null && pb.Sha256Url == pb.DownloadUrl + ".sha256", "plan B: la página de releases da la versión y las URLs de GitHub");
+Check(new[] { "https://github.com/Otro/Tidy/releases/tag/v9.0.0", "https://github.com/Jeray665/Tidy/releases/tag/v9.0.0/../../x", "https://github.com/Jeray665/Tidy/releases", null }
+      .All(l => Updater.FromRedirect(l, 1) == null), "plan B: rechaza otros repos, etiquetas raras y la página sin release");
+try
+{
+    var liveRel = await Updater.FromReleasesPage();
+    var liveFile = liveRel == null ? null : await Updater.Download(liveRel);
+    Check(liveFile != null && File.Exists(liveFile) && liveFile.StartsWith(Store.DownloadsDir),
+          $"plan B (en vivo, sin API): encuentra {liveRel?.Version}, descarga {Store.FormatBytes(liveRel?.Size ?? 0)} y pasa tamaño + SHA-256 + versión");
+}
+catch (Exception ex) { Check(false, $"plan B (en vivo): {ex.Message}"); }
+try { var full = await Updater.Check(); Check(full != null && full.Version >= new Version(1, 1, 0), $"buscar actualizaciones (API o plan B si está limitada): ve la {full?.Version}"); }
+catch (Exception ex) { Check(false, $"buscar actualizaciones: {ex.Message}"); }
+
 var swapDir = Path.Combine(sandbox, "swap"); Directory.CreateDirectory(swapDir);
 var running = Path.Combine(swapDir, "Tidy.exe"); File.WriteAllText(running, "old");
 var newer = Path.Combine(sandbox, "new.exe"); File.WriteAllText(newer, "new");

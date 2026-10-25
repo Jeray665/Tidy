@@ -34,14 +34,50 @@ public static class Updater
 
     public static async Task<Release?> Check()
     {
-        using var doc = JsonDocument.Parse(await Http.GetStringAsync(Api));
+        Release? r;
+        try
+        {
+            using var doc = JsonDocument.Parse(await Http.GetStringAsync(Api));
+            r = Parse(doc.RootElement);
+        }
+        catch (HttpRequestException e) when (e.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.TooManyRequests)
+        {
+            // the anonymous API allows 60 requests an hour per address, easily used up behind a shared VPN address
+            Store.Log($"Update check: GitHub API limited ({(int)e.StatusCode}), using the releases page");
+            r = await FromReleasesPage();
+        }
         Store.Settings.LastUpdateCheck = DateTime.Now;
         Store.Save();
-        var r = Parse(doc.RootElement);
         Available = r != null && r.Version > Current ? r : null;
         Store.Log($"Update check: latest {r?.Version.ToString() ?? "?"}, running {Current}");
         if (Available != null) Found?.Invoke(Available);
         return Available;
+    }
+
+    static readonly HttpClient NoRedirect = new(new SocketsHttpHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(30) };
+
+    /// <summary>Plan B without the API: github.com/…/releases/latest redirects to the newest release's tag, the asset's size
+    /// comes from the download server, and its SHA-256 from the .sha256 file published next to it (checked in Download).</summary>
+    public static async Task<Release?> FromReleasesPage()
+    {
+        if (NoRedirect.DefaultRequestHeaders.UserAgent.Count == 0) NoRedirect.DefaultRequestHeaders.UserAgent.ParseAdd($"Tidy/{Current}");
+        using var latest = await NoRedirect.GetAsync(ReleasesPage + "/latest");
+        var draft = FromRedirect(latest.Headers.Location?.ToString(), 0);
+        if (draft == null) return null;
+        using var head = await Http.SendAsync(new HttpRequestMessage(HttpMethod.Head, draft.DownloadUrl));
+        var size = head.Content.Headers.ContentLength ?? 0;
+        return head.IsSuccessStatusCode && size > 0 ? draft with { Size = size } : null;
+    }
+
+    /// <summary>"https://github.com/Jeray665/Tidy/releases/tag/v1.2.0" → that release. Anything else (another repo, odd tag) → null.</summary>
+    public static Release? FromRedirect(string? location, long size)
+    {
+        var prefix = ReleasesPage + "/tag/";
+        if (location == null || !location.StartsWith(prefix, StringComparison.Ordinal)) return null;
+        var tag = location[prefix.Length..];
+        if (!System.Text.RegularExpressions.Regex.IsMatch(tag, @"^v?\d+\.\d+(\.\d+)?\z") || !Version.TryParse(tag.TrimStart('v'), out var v)) return null;
+        var download = $"{ReleasesPage}/download/{tag}/{Asset}";
+        return new(Trim(v), "", download, size, null, download + ".sha256");
     }
 
     public static Release? Parse(JsonElement root)
