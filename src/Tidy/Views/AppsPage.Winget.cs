@@ -39,7 +39,9 @@ public partial class AppsPage
         WingetMissing.IsOpen = !Winget.Available;
         if (!Winget.Available) { UpdatesSummary.Text = "winget no está disponible"; UpdateBtn.IsEnabled = false; return; }
         ShowCatalog();
+        var newest = Task.Run(NewestCatalog);
         await RefreshUpdates();
+        if (await newest && WingetQuery.Text.Trim() == "") ShowCatalog();
         var installed = await Task.Run(Winget.Installed);
         _installedIds = new(installed.Select(p => p.Id), StringComparer.OrdinalIgnoreCase);
         foreach (var r in _catalogRows.Values) if (_installedIds.Contains(r.Id)) r.Installed = true;
@@ -83,6 +85,23 @@ public partial class AppsPage
         if (_installedIds.Contains(id)) row.Installed = true;
         row.SelectionChanged += UpdateInstallButton;
         return row;
+    }
+
+    /// <summary>Swaps "Python 3.13" and the like for the newest version winget has. True if something changed.</summary>
+    bool NewestCatalog()
+    {
+        var changed = false;
+        for (var i = 0; i < Winget.Catalog.Length; i++)
+            if (Winget.Newest(Winget.Catalog[i]) is { } n)
+            {
+                Store.Log($"Catálogo: {Winget.Catalog[i].Id} -> {n.Id}");
+                var old = Winget.Catalog[i].Id;
+                Winget.Catalog[i] = n;
+                // the old tile goes away; ticked or not, it's no longer offered
+                Dispatcher.Invoke(() => { if (_catalogRows.Remove(old, out var row)) row.SelectionChanged -= UpdateInstallButton; UpdateInstallButton(); });
+                changed = true;
+            }
+        return changed;
     }
 
     void ShowCatalog()

@@ -85,6 +85,31 @@ public static class Winget
     public static List<WingetPackage> Search(string query) =>
         SafeQuery.IsMatch(query) ? Table(Run($"search \"{query}\" --count 40 {Common}")).Select(p => p with { Available = "" }).ToList() : [];
 
+    /// <summary>Packages published once per version (Python.Python.3.13, 3.14, one day 4.0…): the catalog shows the
+    /// newest one winget has, so a new Python appears without a Tidy update. Null if winget doesn't answer.</summary>
+    public static CatalogApp? Newest(CatalogApp app)
+    {
+        var own = VersionedId.Match(app.Id);
+        if (!own.Success) return null;
+        var ids = Table(Run($"search --id {own.Groups[1].Value} --source winget {Common}")).Select(p => p.Id);
+        return NewestOf(app, ids);
+    }
+
+    // "Python.Python." + "3.13": the package family, then its version (whole, so 3.14 < 4.0 < 4.1)
+    static readonly Regex VersionedId = new(@"^(.*?[A-Za-z][\w+-]*\.)(\d{1,4}(?:\.\d{1,4}){0,2})$");
+
+    public static CatalogApp? NewestOf(CatalogApp app, IEnumerable<string> ids)
+    {
+        var own = VersionedId.Match(app.Id);
+        if (!own.Success) return null;
+        static Version V(string s) => Version.Parse(s.Contains('.') ? s : s + ".0"); // "4" -> 4.0
+        var family = own.Groups[1].Value;
+        var best = ids.Select(id => VersionedId.Match(id)).Where(m => m.Success && m.Groups[1].Value == family).MaxBy(m => V(m.Groups[2].Value));
+        if (best == null || V(best.Groups[2].Value) <= V(own.Groups[2].Value)) return null; // never an older one
+        // "Python 3.13" -> "Python 4.0": same name, the new version
+        return app with { Id = best.Value, Name = Regex.Replace(app.Name, @"\d+(\.\d+)*$", best.Groups[2].Value) };
+    }
+
     public static (bool Ok, string Message) Upgrade(string id) => Act("upgrade", id, null);
 
     public static (bool Ok, string Message) Install(string id, string source) => Act("install", id, source);

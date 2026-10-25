@@ -471,6 +471,17 @@ var presetItems = StartupPresets.Candidates(); // read-only: lists, never applie
 Console.WriteLine($"INFO  Preconfiguraciones en este PC: Ligero {presetItems.Count(i => i.Level <= 1)}, Equilibrado {presetItems.Count(i => i.Level <= 2)}, Máximo {presetItems.Count}");
 foreach (var i in presetItems) Console.WriteLine($"INFO    [{i.Level}] {i.Kind}: {i.Name} ({i.Detail})");
 
+// ---- App catalog: newest version line ----
+var py = new CatalogApp("Python.Python.3.13", "Python 3.13", "Desarrollo", "Lenguaje de programación.");
+Check(Winget.NewestOf(py, ["Python.Python.3.1", "Python.Python.3.12", "Python.Python.3.15", "Python.Python.3.14", "Python.Launcher"]) is { Id: "Python.Python.3.15", Name: "Python 3.15" },
+      "catálogo: elige la versión más nueva (3.15, no 3.1 ni 3.14) y cambia el nombre");
+Check(Winget.NewestOf(py, ["Python.Python.3.12", "Python.Python.3.13"]) == null, "catálogo: nunca baja a una versión más vieja");
+Check(Winget.NewestOf(py, ["Python.Python.3.14t", "Evil.Python.Python.3.99", "Python.Python.3.99.x"]) == null, "catálogo: ignora ids que no son de la misma línea");
+Check(Winget.NewestOf(new CatalogApp("GIMP.GIMP.3", "GIMP", "", ""), ["GIMP.GIMP.4"]) is { Id: "GIMP.GIMP.4", Name: "GIMP" }, "catálogo: un nombre sin número se queda igual");
+Check(Winget.NewestOf(py, ["Python.Python.2", "Python.Python.3.14", "Python.Python.4.0", "Python.Python.4.1"]) is { Id: "Python.Python.4.1", Name: "Python 4.1" },
+      "catálogo: salta de rama (3.14 -> 4.1) y no confunde 4.1 con 3.1");
+Check(Winget.NewestOf(py, ["Python.Python.3.14", "Python.Python.4"]) is { Id: "Python.Python.4", Name: "Python 4" }, "catálogo: un id con solo \"4\" cuenta como 4.0");
+
 // ---- Running without admin (installers that refuse to run elevated) ----
 UnelevatedChecks();
 void UnelevatedChecks()

@@ -1,5 +1,8 @@
 # Novedades de Tidy
 
+## 1.1.3
+- Apps: el catálogo para instalar muestra siempre la versión más nueva de Python que hay (hoy la 3.14), también cuando salgan versiones nuevas, sin esperar a que se actualice Tidy.
+
 ## 1.1.2
 - Apps: si un programa no se deja instalar ni actualizar como administrador (por ejemplo Spicetify), Tidy lo vuelve a intentar solo, como tu usuario normal y sin permisos de administrador.
 - Cerrar una notificación con la X ya no muestra el error "Algo ha fallado".
