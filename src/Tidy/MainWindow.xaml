@@ -27,24 +27,16 @@
                            FrameMargin="0">
             <ui:NavigationView.MenuItems>
                 <ui:NavigationViewItem Content="Inicio" TargetPageType="{x:Type v:HomePage}" Icon="{ui:SymbolIcon Home24}" />
-                <ui:NavigationViewItem Content="Rendimiento" TargetPageType="{x:Type v:PerformancePage}" Icon="{ui:SymbolIcon TopSpeed24}" />
-                <ui:NavigationViewItem Content="Limpieza" TargetPageType="{x:Type v:CleanerPage}" Icon="{ui:SymbolIcon Broom24}" />
-                <ui:NavigationViewItem Content="Almacenamiento" TargetPageType="{x:Type v:StoragePage}" Icon="{ui:SymbolIcon DataPie24}" />
-                <ui:NavigationViewItem Content="Aplicaciones" TargetPageType="{x:Type v:AppsPage}" Icon="{ui:SymbolIcon AppsList24}" />
-                <ui:NavigationViewItem Content="Drivers" TargetPageType="{x:Type v:DriversPage}" Icon="{ui:SymbolIcon ArrowSync24}" />
-                <ui:NavigationViewItem Content="Optimizaciones" TargetPageType="{x:Type v:TweaksPage}" Icon="{ui:SymbolIcon Wand24}" />
-                <ui:NavigationViewItem Content="Servicios y tareas" TargetPageType="{x:Type v:ServicesPage}" Icon="{ui:SymbolIcon Settings24}" />
-                <ui:NavigationViewItem Content="Red" TargetPageType="{x:Type v:NetworkPage}" Icon="{ui:SymbolIcon Globe24}" />
-                <ui:NavigationViewItem Content="Inicio de Windows" TargetPageType="{x:Type v:StartupPage}" Icon="{ui:SymbolIcon Rocket24}" />
-                <ui:NavigationViewItem Content="Seguridad" TargetPageType="{x:Type v:SecurityPage}" Icon="{ui:SymbolIcon Shield24}" />
-                <ui:NavigationViewItem Content="Herramientas" TargetPageType="{x:Type v:ToolsPage}" Icon="{ui:SymbolIcon WrenchScrewdriver24}" />
-                <ui:NavigationViewItem Content="Hardware" TargetPageType="{x:Type v:HardwarePage}" Icon="{ui:SymbolIcon DeveloperBoard24}" />
+                <ui:NavigationViewItem Content="Limpieza y disco" TargetPageType="{x:Type v:CleanHub}" Icon="{ui:SymbolIcon Broom24}" />
+                <ui:NavigationViewItem Content="Rendimiento" TargetPageType="{x:Type v:SpeedHub}" Icon="{ui:SymbolIcon TopSpeed24}" />
+                <ui:NavigationViewItem Content="Apps y drivers" TargetPageType="{x:Type v:AppsHub}" Icon="{ui:SymbolIcon AppsList24}" />
+                <ui:NavigationViewItem Content="Seguridad y red" TargetPageType="{x:Type v:SafetyHub}" Icon="{ui:SymbolIcon Shield24}" />
             </ui:NavigationView.MenuItems>
             <ui:NavigationView.FooterMenuItems>
                 <ui:NavigationViewItem x:Name="UpdateItem" Content="Nueva actualización" TargetPageType="{x:Type v:SettingsPage}" Visibility="Collapsed"
                                        Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Icon="{ui:SymbolIcon ArrowDownload24}" />
-                <ui:NavigationViewItem Content="Historial" TargetPageType="{x:Type v:HistoryPage}" Icon="{ui:SymbolIcon History24}" />
-                <ui:NavigationViewItem Content="Copias de seguridad" TargetPageType="{x:Type v:BackupsPage}" Icon="{ui:SymbolIcon ShieldCheckmark24}" />
+                <ui:NavigationViewItem Content="Avanzado" TargetPageType="{x:Type v:AdvancedHub}" Icon="{ui:SymbolIcon WrenchScrewdriver24}" />
+                <ui:NavigationViewItem Content="Historial y copias" TargetPageType="{x:Type v:HistoryHub}" Icon="{ui:SymbolIcon History24}" />
                 <ui:NavigationViewItem Content="Ajustes" TargetPageType="{x:Type v:SettingsPage}" Icon="{ui:SymbolIcon Options24}" />
             </ui:NavigationView.FooterMenuItems>
         </ui:NavigationView>

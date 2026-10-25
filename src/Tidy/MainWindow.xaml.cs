@@ -31,7 +31,15 @@ public partial class MainWindow : FluentWindow
         };
     }
 
-    public void Navigate(Type page) => Nav.Navigate(page);
+    /// <summary>Pages that live inside a sidebar group open that group on their tab.</summary>
+    public void Navigate(Type page)
+    {
+        var hub = Views.Hub.Of(page);
+        Views.Hub.Pending = page;
+        Nav.Navigate(hub ?? page);
+        if (hub != null && Views.Hub.Shown?.GetType() == hub) Views.Hub.Shown.Select(page);
+        Views.Hub.Pending = null;
+    }
 
     void Toast_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e) => Toasts.Pause((Toast)((FrameworkElement)sender).DataContext);
     void Toast_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) => Toasts.Restart((Toast)((FrameworkElement)sender).DataContext);
