@@ -226,7 +226,13 @@ public static class Repairs
                 return (a.Exit == 0 && b.Exit == 0, (a.Output + b.Output).Trim());
             case "sfc": OpenConsole("sfc /scannow"); return (true, "");
             case "dism": OpenConsole("DISM /Online /Cleanup-Image /RestoreHealth"); return (true, "");
-            case "chkdsk": OpenConsole("chkdsk C: /scan"); return (true, "");
+            case "chkdsk":
+                if (CanStart("chkdsk.exe")) { OpenConsole("chkdsk C: /scan"); return (true, ""); }
+                // some PCs (security software) won't let chkdsk.exe start at all, not even as admin:
+                // the same read-only online scan through the Storage service instead
+                Store.Log("Repair: chkdsk.exe can't start on this PC, using Repair-Volume -Scan");
+                Elevated(Sys("conhost.exe"), $"\"{Sys(@"WindowsPowerShell\v1.0\powershell.exe")}\" -NoExit -NoProfile -Command Repair-Volume -DriveLetter C -Scan -Verbose");
+                return (true, "");
             case "policies":
                 // each removed value goes into the history entry, so "undo" can put back exactly that
                 var removed = new List<string>();
@@ -285,6 +291,12 @@ public static class Repairs
     static void Elevated(string exe, string args) =>
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, args)
             { UseShellExecute = true, Verb = "runas", WorkingDirectory = Environment.SystemDirectory });
+
+    static bool CanStart(string exe)
+    {
+        try { Store.Run(exe, "/?", 10_000); return true; }
+        catch (System.ComponentModel.Win32Exception e) { Store.Log($"  {exe} can't start: {e.Message}"); return false; }
+    }
 
     static void OpenConsole(string command) => Elevated(Sys("conhost.exe"), $"\"{Sys("cmd.exe")}\" /k {command}");
 

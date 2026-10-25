@@ -76,8 +76,16 @@ public partial class StartupPage : Page
         }
     }
 
-    /// <summary>Shows the full list with the reason for each item; only what stays ticked is changed.</summary>
     async Task Apply(int level, List<PresetItem> items)
+    {
+        var name = StartupPresets.Names[level - 1];
+        if (await Review($"Preconfiguración {name}", $"{StartupPresets.Descriptions[level - 1]} Desmarca lo que quieras conservar. Cada cambio se puede deshacer en Historial.",
+                items, $"Tidy: preconfiguración de inicio {name}"))
+            await Reload();
+    }
+
+    /// <summary>Shows the full list with the reason for each item; only what stays ticked is changed. True if anything was applied.</summary>
+    internal static async Task<bool> Review(string title, string intro, List<PresetItem> items, string restorePoint)
     {
         var list = new StackPanel();
         var boxes = new List<(CheckBox Box, PresetItem Item)>();
@@ -85,36 +93,37 @@ public partial class StartupPage : Page
         {
             list.Children.Add(new System.Windows.Controls.TextBlock
             {
-                Text = group.Key switch { PresetKind.App => "Apps de inicio (se desactivan, no se desinstalan)", PresetKind.Service => "Servicios (pasan a manual)", _ => "Tareas programadas (se desactivan)" },
+                Text = group.Key switch { PresetKind.App => "Apps de inicio (se desactivan, no se desinstalan)", PresetKind.Service => "Servicios", _ => "Tareas programadas (se desactivan)" },
                 FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, boxes.Count == 0 ? 0 : 12, 0, 6),
             });
             foreach (var i in group)
             {
                 var text = new StackPanel();
                 text.Children.Add(new System.Windows.Controls.TextBlock { Text = i.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-                text.Children.Add(Ui.Text($"{i.Detail.TrimEnd('.')}. {i.Why}", "Muted", 0));
-                var box = new CheckBox { IsChecked = true, Content = text, Margin = new Thickness(0, 0, 0, 6) };
+                // translated piece by piece: the joined sentence isn't a known text
+                text.Children.Add(Ui.Text($"{I18n.T(i.Detail).TrimEnd('.')}. {I18n.T(i.Why)}", "Muted", 0));
+                var box = new CheckBox { IsChecked = i.On, Content = text, Margin = new Thickness(0, 0, 0, 6) };
                 boxes.Add((box, i));
                 list.Children.Add(box);
             }
         }
         var content = new StackPanel { Width = 640 };
-        content.Children.Add(Ui.Text($"{StartupPresets.Descriptions[level - 1]} Desmarca lo que quieras conservar. Cada cambio se puede deshacer en Historial.", null, 12));
+        content.Children.Add(Ui.Text(intro, null, 12));
         content.Children.Add(new ScrollViewer { Content = list, MaxHeight = 380, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 10, 0) });
-        if (!await Ui.Confirm($"Preconfiguración {StartupPresets.Names[level - 1]}", content, "Aplicar lo marcado")) return;
+        if (!await Ui.Confirm(title, content, "Aplicar lo marcado")) return false;
 
         var chosen = boxes.Where(b => b.Box.IsChecked == true).Select(b => b.Item).ToList();
-        if (chosen.Count == 0) return;
-        if (chosen.Any(c => c.Kind != PresetKind.App) && !await Ui.EnsureRestorePoint($"Tidy: preconfiguración de inicio {StartupPresets.Names[level - 1]}")) return;
+        if (chosen.Count == 0) return false;
+        if (chosen.Any(c => c.Kind != PresetKind.App) && !await Ui.EnsureRestorePoint(restorePoint)) return false;
         var failed = await Task.Run(() => chosen.Where(c =>
         {
             try { return !c.Apply().Ok; }
-            catch (Exception ex) { Store.Log($"Startup preset: {c.Name} failed: {ex.Message}"); return true; }
+            catch (Exception ex) { Store.Log($"{title}: {c.Name} failed: {ex.Message}"); return true; }
         }).Select(c => c.Name).ToList());
-        Store.Log($"Startup preset {StartupPresets.Names[level - 1]}: {chosen.Count - failed.Count} changed, {failed.Count} failed");
-        if (failed.Count == 0) Ui.Toast("Preconfiguración aplicada", $"{chosen.Count} cambios. Se notará en el próximo arranque y se pueden deshacer en Historial.");
-        else Ui.Toast("Aplicada en parte", $"No se pudo cambiar: {string.Join(", ", failed.Take(3))}{(failed.Count > 3 ? "…" : "")}", ControlAppearance.Caution);
-        await Reload();
+        Store.Log($"{title}: {chosen.Count - failed.Count} changed, {failed.Count} failed");
+        if (failed.Count == 0) Ui.Toast("Cambios aplicados", $"{chosen.Count} cambios. Se notará en el próximo arranque y se pueden deshacer en Historial.");
+        else Ui.Toast("Aplicado en parte", $"No se pudo cambiar: {string.Join(", ", failed.Take(3))}{(failed.Count > 3 ? "…" : "")}", ControlAppearance.Caution);
+        return true;
     }
 
     void Toggle_Click(object sender, RoutedEventArgs e)

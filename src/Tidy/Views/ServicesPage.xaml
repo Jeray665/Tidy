@@ -8,7 +8,24 @@
         <TextBlock Style="{StaticResource PageSubtitle}"
                    Text="Control total de lo que Windows ejecuta en segundo plano. Antes de cambiar algo se guarda cómo estaba, y los imprescindibles (seguridad, red, audio, actualizaciones, inicio de sesión) están bloqueados para que no rompas Windows." />
 
-        <TabControl x:Name="Tabs" Margin="0,18,0,0">
+        <Border Style="{StaticResource Tile}" Margin="0,18,0,0" Padding="18,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:SymbolIcon Symbol="Wand24" FontSize="26" VerticalAlignment="Center" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                <StackPanel Grid.Column="1" Margin="14,0,14,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="UnneededTitle" Text="Buscando lo que está activo sin hacer falta…" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" />
+                    <TextBlock x:Name="UnneededSub" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,2,0,0"
+                               Text="Servicios y tareas de Windows y de tus programas que gastan recursos sin que los uses." />
+                </StackPanel>
+                <ui:Button x:Name="UnneededBtn" Grid.Column="2" Appearance="Primary" Content="Ver la lista…" IsEnabled="False" VerticalAlignment="Center" Click="Unneeded_Click" />
+            </Grid>
+        </Border>
+
+        <TabControl x:Name="Tabs" Margin="0,14,0,0">
             <TabItem>
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal"><ui:SymbolIcon Symbol="Settings24" Margin="0,0,6,0" /><TextBlock Text="Servicios" /></StackPanel>

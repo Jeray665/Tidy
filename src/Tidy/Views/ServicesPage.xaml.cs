@@ -40,11 +40,12 @@ public partial class ServicesPage : Page
 {
     List<ServiceRow> _services = [];
     List<TaskRow> _tasks = [];
+    List<PresetItem> _unneeded = [];
 
     public ServicesPage()
     {
         InitializeComponent();
-        Loaded += async (_, _) => { await LoadServices(); await LoadTasks(); };
+        Loaded += async (_, _) => { await LoadServices(); await LoadTasks(); await LoadUnneeded(); };
     }
 
     async Task LoadServices()
@@ -59,6 +60,27 @@ public partial class ServicesPage : Page
         TaskSummary.Text = "Cargando tareas…";
         _tasks = (await Task.Run(ScheduledTasks.List)).Select(t => new TaskRow(t)).ToList();
         TaskFilter_Changed(this, new RoutedEventArgs());
+    }
+
+    async Task LoadUnneeded()
+    {
+        UnneededBtn.IsEnabled = false;
+        _unneeded = await Task.Run(Unneeded.Candidates);
+        var n = _unneeded.Count;
+        UnneededTitle.Text = n == 0 ? "No hay nada activo que sobre" : n == 1 ? "Hay 1 cosa activa que no hace falta" : $"Hay {n} cosas activas que no hacen falta";
+        UnneededSub.Text = n == 0 ? "Los servicios y tareas que Tidy conoce ya están como deben."
+            : "Telemetría, informes de errores y funciones que casi nadie usa. Verás la lista con el porqué de cada una antes de cambiar nada.";
+        UnneededBtn.IsEnabled = n > 0;
+    }
+
+    async void Unneeded_Click(object sender, RoutedEventArgs e)
+    {
+        if (!await StartupPage.Review("Servicios y tareas que sobran",
+                "Desmarca lo que quieras conservar. Los servicios pasan a manual (arrancan solo si algo los pide) o se deshabilitan donde se indica, y las tareas se desactivan. Todo se puede deshacer en Historial o con \"Restaurar todos\".",
+                _unneeded, "Tidy: servicios y tareas que sobran")) return;
+        await LoadServices();
+        await LoadTasks();
+        await LoadUnneeded();
     }
 
     void SvcFilter_Changed(object sender, RoutedEventArgs e)

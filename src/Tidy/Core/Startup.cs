@@ -184,7 +184,50 @@ public static class StartupApps
 public enum PresetKind { App, Service, Task }
 
 /// <summary>One thing a startup preset would change. Level 1 = Ligero, 2 = Equilibrado, 3 = Máximo.</summary>
-public record PresetItem(PresetKind Kind, string Name, string Detail, string Why, int Level, Func<(bool Ok, string Message)> Apply);
+public record PresetItem(PresetKind Kind, string Name, string Detail, string Why, int Level, Func<(bool Ok, string Message)> Apply, bool On = true);
+
+/// <summary>
+/// Windows' own services and tasks that are on for nothing on most PCs, plus the third-party telemetry the startup presets find.
+/// Only what's on right now is offered. Never here: search, printing, Bluetooth, Wi-Fi, Xbox/Game Pass, location, Hello, updates.
+/// </summary>
+public static class Unneeded
+{
+    public static readonly (string Name, StartMode Mode, bool On, string Why)[] WindowsServices =
+    [
+        ("DiagTrack", StartMode.Disabled, true, "Telemetría: envía datos de uso a Microsoft. Nada depende de él."),
+        ("dmwappushservice", StartMode.Disabled, true, "Reparte los mensajes de telemetría. Nada depende de él."),
+        ("RetailDemo", StartMode.Disabled, true, "Modo demo de las tiendas. No sirve en un PC de casa."),
+        ("RemoteRegistry", StartMode.Disabled, true, "Deja editar tu registro desde otro PC. Apagado es más seguro."),
+        ("NvTelemetryContainer", StartMode.Disabled, true, "Telemetría de NVIDIA. Los drivers y los juegos van igual."),
+        ("MapsBroker", StartMode.Manual, true, "Descarga mapas sin conexión. La app Mapas lo arranca si la usas."),
+        ("WMPNetworkSvc", StartMode.Manual, true, "Comparte la biblioteca de Windows Media en la red."),
+        ("TrkWks", StartMode.Manual, true, "Sigue accesos directos a archivos movidos por redes de empresa."),
+        ("PcaSvc", StartMode.Manual, true, "Asistente de compatibilidad para programas antiguos. Arranca solo si hace falta."),
+        ("WerSvc", StartMode.Manual, true, "Informes de errores. Arranca solo cuando algo falla."),
+        ("Fax", StartMode.Manual, true, "Fax."),
+        ("wisvc", StartMode.Manual, true, "Programa Windows Insider. Arranca solo cuando Windows lo necesita."),
+        ("diagnosticshub.standardcollector.service", StartMode.Manual, true, "Diagnóstico para programadores (Visual Studio)."),
+        ("SysMain", StartMode.Manual, false, "Precarga en RAM las apps que más usas. Con SSD apenas se nota; sin él, algunas apps tardan un poco más la primera vez."),
+    ];
+
+    // needed for Game Pass even though it's in Tidy's optional list
+    const string GamePassTask = @"\Microsoft\Windows\XblGameSave\XblGameSaveTask";
+
+    public static List<PresetItem> Candidates()
+    {
+        var list = new List<PresetItem>();
+        var on = Services.List().Where(s => !s.Protected && s.StartMode.StartsWith("Automático")).ToDictionary(s => s.Name, StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, mode, check, why) in WindowsServices)
+            if (on.TryGetValue(name, out var s))
+                list.Add(new(PresetKind.Service, s.Display, mode == StartMode.Disabled ? "Servicio de Windows · se deshabilita" : "Servicio de Windows · pasa a manual", why,
+                    1, () => Services.SetMode(name, mode), check));
+        foreach (var t in ScheduledTasks.List().Where(t => t.Enabled && t.CanChange && t.Hint != null && !t.Path.Equals(GamePassTask, StringComparison.OrdinalIgnoreCase)))
+            list.Add(new(PresetKind.Task, t.Name, $"Tarea de Windows · {t.Folder}", t.Hint!, 1, () => ScheduledTasks.SetEnabled(t.Path, false)));
+        // third-party services and tasks the startup presets would turn off (their startup apps stay on the startup page)
+        list.AddRange(StartupPresets.Candidates().Where(i => i.Kind != PresetKind.App));
+        return list;
+    }
+}
 
 /// <summary>
 /// Third-party things that start with Windows and only cost performance, grouped by how far to go. Everything goes through

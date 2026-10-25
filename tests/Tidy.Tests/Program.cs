@@ -161,6 +161,10 @@ Check(Tweaks.FromProfile(new Tweaks.Profile { Tweaks = ["no-existe", "../evil"] 
 Check(Services.IsProtected("WinDefend", "") && Services.IsProtected("RpcSs", "") && Services.IsProtected("wuauserv", "") && Services.IsProtected("Appinfo", ""), "servicios: críticos protegidos (Defender, RPC, Update, UAC)");
 Check(Services.IsProtected("cbdhsvc_1a2b3", ""), "servicios: instancias por usuario protegidas");
 Check(!Services.IsProtected("SysMain", "Automático"), "servicios: SysMain sí se puede cambiar");
+string[] needed = ["WSearch", "Spooler", "bthserv", "WlanSvc", "lfsvc", "WbioSrvc", "SCardSvr", "XblAuthManager", "XblGameSave", "XboxGipSvc", "Audiosrv"];
+Check(Unneeded.WindowsServices.All(s => !Services.IsProtected(s.Name, "Automático") && !needed.Contains(s.Name, StringComparer.OrdinalIgnoreCase)),
+    "servicios que sobran: ninguno protegido ni de los que se usan (búsqueda, impresora, Bluetooth, Wi-Fi, Xbox…)");
+Check(Unneeded.WindowsServices.All(s => s.Mode is StartMode.Manual or StartMode.Disabled), "servicios que sobran: solo pasan a manual o deshabilitado");
 File.WriteAllText(Path.Combine(Directory.CreateDirectory(Store.SecureDir).FullName, "services-backup.json"),
     "{\"SysMain\":{\"Start\":0,\"Delayed\":0},\"WinDefend\":{\"Start\":4,\"Delayed\":0}}");
 Check(!Services.Restore("SysMain") && !Services.Restore("WinDefend"), "servicios: copia manipulada (arranque de sistema / desactivar Defender) RECHAZADA");
