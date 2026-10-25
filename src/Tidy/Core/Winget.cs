@@ -19,6 +19,8 @@ public static class Winget
     const string Common = "--accept-source-agreements --disable-interactivity";
     static readonly Regex SafeId = new(@"^[\w.+-]{2,128}$");
     static readonly Regex SafeQuery = new(@"^[\w .+-]{2,60}$");
+    // winget exit codes: APPINSTALLER_CLI_ERROR_INSTALLER_PROHIBITS_ELEVATION, _ADMIN_CONTEXT_ACTION_PROHIBITED
+    const int ProhibitsElevation = unchecked((int)0x8A150056), UserScopeFromAdmin = unchecked((int)0x8A15007D);
 
     public static readonly CatalogApp[] Catalog =
     [
@@ -93,7 +95,15 @@ public static class Winget
     {
         if (!SafeId.IsMatch(id)) return (false, "Identificador no válido.");
         if (source is not (null or "winget" or "msstore")) return (false, "Origen no válido.");
-        var (code, output) = Store.Run(ExePath, $"{verb} --id \"{id}\" --exact {(source != null ? $"--source {source} " : "")}--silent {(verb == "uninstall" ? "" : "--accept-package-agreements ")}{Common}", 20 * 60_000);
+        var args = $"{verb} --id \"{id}\" --exact {(source != null ? $"--source {source} " : "")}--silent {(verb == "uninstall" ? "" : "--accept-package-agreements ")}{Common}";
+        var (code, output) = Store.Run(ExePath, args, 20 * 60_000);
+        // some installers refuse to run as administrator (Spicetify…), and winget won't touch per-user apps from an admin
+        // context: the same command again as the normal user
+        if (code is ProhibitsElevation or UserScopeFromAdmin)
+        {
+            Store.Log($"winget {verb} {id} -> {code}, sin administrador");
+            (code, output) = Store.RunUnelevated(ExePath, args, 20 * 60_000);
+        }
         var lines = Clean(output);
         Store.Log($"winget {verb} {id} -> {code} {lines.LastOrDefault()}");
         return (code == 0, code == 0 ? "" : lines.LastOrDefault() ?? $"código {code}");

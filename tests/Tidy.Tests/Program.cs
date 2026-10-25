@@ -1,4 +1,4 @@
-// Safety checks for Tidy's core. Everything destructive runs inside a throwaway sandbox folder and a
+﻿// Safety checks for Tidy's core. Everything destructive runs inside a throwaway sandbox folder and a
 // throwaway HKCU\Software\TidyTest key. Usage: Tidy.Tests <sandboxDir> [--wu]
 using System.Diagnostics;
 using System.Text;
@@ -13,6 +13,8 @@ Store.Dir = Path.Combine(sandbox, "store");
 Store.SecureDir = Path.Combine(sandbox, "secure"); // first thing: no test may touch the real Program Files\Tidy\data
 int failed = 0;
 void Check(bool ok, string what) { Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {what}"); if (!ok) failed++; }
+// --unelevated: only the run-without-admin checks (meant to be started as administrator)
+if (args.Contains("--unelevated")) { UnelevatedChecks(); Cleaner.DeleteTree(sandbox); Console.WriteLine(failed == 0 ? "TODO OK" : $"{failed} FALLOS"); return failed; }
 
 // ---- NVIDIA version parsing ----
 Check(Drivers.NvidiaVersion("32.0.16.1742") == "617.42", "NVIDIA 32.0.16.1742 -> 617.42");
@@ -468,6 +470,20 @@ Check(StartupPresets.Level("Discord " + sq.Replace(@"""C:\Users\x\AppData\Local\
 var presetItems = StartupPresets.Candidates(); // read-only: lists, never applies
 Console.WriteLine($"INFO  Preconfiguraciones en este PC: Ligero {presetItems.Count(i => i.Level <= 1)}, Equilibrado {presetItems.Count(i => i.Level <= 2)}, Máximo {presetItems.Count}");
 foreach (var i in presetItems) Console.WriteLine($"INFO    [{i.Level}] {i.Kind}: {i.Name} ({i.Detail})");
+
+// ---- Running without admin (installers that refuse to run elevated) ----
+UnelevatedChecks();
+void UnelevatedChecks()
+{
+    var whoami = Path.Combine(Environment.SystemDirectory, "whoami.exe");
+    if (new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent()).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator))
+    {
+        var ug = Store.RunUnelevated(whoami, "/groups");
+        Check(ug.Exit == 0 && ug.Output.Contains("S-1-16-8192") && !ug.Output.Contains("S-1-16-12288"), "sin administrador: el proceso corre con nivel medio, no elevado");
+        Check(Store.RunUnelevated(Path.Combine(Environment.SystemDirectory, "cmd.exe"), "/d /c exit 7").Exit == 7, "sin administrador: devuelve el código de salida");
+    }
+    else Check(Store.RunUnelevated(whoami, "/groups") is var r0 && (r0.Exit == 0 || r0.Output.StartsWith("No se pudo")), "sin administrador: sin elevar, no rompe");
+}
 
 // ---- Read-only probes of the real system ----
 SysMon.Cpu(); Thread.Sleep(500);

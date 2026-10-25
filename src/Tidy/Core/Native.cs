@@ -226,6 +226,67 @@ static class Native
         try { return EmptyWorkingSet(h); } finally { CloseHandle(h); }
     }
 
+    // ---------- run as the signed-in user, without admin ----------
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct STARTUPINFO
+    {
+        public int cb; public string? lpReserved, lpDesktop, lpTitle;
+        public int dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+        public short wShowWindow, cbReserved2; public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct PROCESS_INFORMATION { public IntPtr hProcess, hThread; public int dwProcessId, dwThreadId; }
+
+    [DllImport("user32.dll")] static extern IntPtr GetShellWindow();
+    [DllImport("user32.dll")] static extern int GetWindowThreadProcessId(IntPtr hwnd, out int pid);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool DuplicateTokenEx(IntPtr token, uint access, IntPtr attributes, int impersonation, int type, out IntPtr newToken);
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern bool CreateProcessWithTokenW(IntPtr token, int logonFlags, string app, System.Text.StringBuilder cmd, uint flags,
+        IntPtr env, string? dir, ref STARTUPINFO si, out PROCESS_INFORMATION pi);
+    [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr h, int ms);
+    [DllImport("kernel32.dll")] static extern bool GetExitCodeProcess(IntPtr h, out int code);
+
+    /// <summary>Starts exe with Explorer's token: the signed-in user without admin rights, as if opened from the desktop.
+    /// Only Windows' own explorer.exe counts as that shell. Returns the exit code, or null (with the reason) if it couldn't start.</summary>
+    public static (int? Exit, string Error) RunAsShellUser(string exe, string args, int timeoutMs)
+    {
+        GetWindowThreadProcessId(GetShellWindow(), out var pid);
+        var explorer = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+        if (pid == 0 || !string.Equals(ProcessPath(pid), explorer, StringComparison.OrdinalIgnoreCase)) return (null, "el Explorador de Windows no está abierto");
+        IntPtr proc = IntPtr.Zero, token = IntPtr.Zero, user = IntPtr.Zero;
+        try
+        {
+            proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+            if (proc == IntPtr.Zero || !OpenProcessToken(proc, 0x2 /* TOKEN_DUPLICATE */, out token)) return (null, $"error {Marshal.GetLastWin32Error()}");
+            // TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_DEFAULT | TOKEN_ADJUST_SESSIONID, primary token
+            if (!DuplicateTokenEx(token, 0x8 | 0x2 | 0x1 | 0x80 | 0x100, IntPtr.Zero, 2, 1, out user)) return (null, $"error {Marshal.GetLastWin32Error()}");
+            var si = new STARTUPINFO { cb = Marshal.SizeOf<STARTUPINFO>() };
+            if (!CreateProcessWithTokenW(user, 0, exe, new System.Text.StringBuilder($"\"{exe}\" {args}"), 0x08000000 /* CREATE_NO_WINDOW */,
+                    IntPtr.Zero, Environment.SystemDirectory, ref si, out var pi))
+                return (null, $"error {Marshal.GetLastWin32Error()}");
+            CloseHandle(pi.hThread);
+            try
+            {
+                if (WaitForSingleObject(pi.hProcess, timeoutMs) != 0)
+                {
+                    try { System.Diagnostics.Process.GetProcessById(pi.dwProcessId).Kill(true); } catch { }
+                    return (-1, "timeout");
+                }
+                GetExitCodeProcess(pi.hProcess, out var code);
+                return (code, "");
+            }
+            finally { CloseHandle(pi.hProcess); }
+        }
+        finally
+        {
+            if (user != IntPtr.Zero) CloseHandle(user);
+            if (token != IntPtr.Zero) CloseHandle(token);
+            if (proc != IntPtr.Zero) CloseHandle(proc);
+        }
+    }
+
     // ---------- Restart Manager: who has a file open ----------
     [StructLayout(LayoutKind.Sequential)]
     struct RM_UNIQUE_PROCESS { public int dwProcessId; public System.Runtime.InteropServices.ComTypes.FILETIME ProcessStartTime; }

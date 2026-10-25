@@ -181,6 +181,20 @@ public static class Store
         return (p.ExitCode, stdout.Result + stderr.Result);
     }
 
+    /// <summary>Like Run, but as the signed-in user without admin rights (some installers refuse to run elevated).
+    /// cmd only redirects the output to a temp file; /d skips any cmd AutoRun.</summary>
+    public static (int Exit, string Output) RunUnelevated(string exe, string args, int timeoutMs = 120_000)
+    {
+        var outFile = Path.Combine(Path.GetTempPath(), "tidy-" + Guid.NewGuid().ToString("N") + ".txt");
+        try
+        {
+            var (code, error) = Native.RunAsShellUser(Path.Combine(Environment.SystemDirectory, "cmd.exe"), $"/d /s /c \"\"{exe}\" {args} > \"{outFile}\" 2>&1\"", timeoutMs);
+            if (code == null) return (-1, $"No se pudo abrir sin permisos de administrador: {error}.");
+            return (code.Value, File.Exists(outFile) ? File.ReadAllText(outFile, Encoding.UTF8) : "");
+        }
+        finally { try { File.Delete(outFile); } catch { } }
+    }
+
     public static string FormatBytes(long b) => b switch
     {
         >= 1L << 30 => $"{b / (double)(1L << 30):0.0} GB",
