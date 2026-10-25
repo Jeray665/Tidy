@@ -2,6 +2,7 @@
 
 ## 1.1.2
 - Apps: si un programa no se deja instalar ni actualizar como administrador (por ejemplo Spicetify), Tidy lo vuelve a intentar solo, como tu usuario normal y sin permisos de administrador.
+- Cerrar una notificación con la X ya no muestra el error "Algo ha fallado".
 
 ## 1.1.1
 - Descargas y Duplicados tienen ahora los mismos filtros que el análisis de disco: por tipo de archivo, por tamaño y columnas que se ordenan con un clic. En Duplicados cada grupo de copias se mueve entero.

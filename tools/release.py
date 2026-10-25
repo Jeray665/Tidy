@@ -2,6 +2,8 @@
 
     python tools/release.py 1.1.2          build, check and publish v1.1.2
     python tools/release.py --notes 1.1.0  only rewrite the notes of v1.1.0 from CHANGELOG.md
+    python tools/release.py --replace 1.1.2  rebuild v1.1.2 from main: new files, tag and notes (whoever already
+                                             has 1.1.2 won't be offered it again: the version number doesn't change)
 
 Everything text-related is read and written as UTF-8 here (never through Windows PowerShell 5.1, which
 reads BOM-less UTF-8 as ANSI and mangles every accent). Before and after publishing, the notes
@@ -63,6 +65,8 @@ def main():
         run(GH, "release", "edit", tag, "--repo", REPO, "--notes-file", str(push_notes(tag, body)))
         verify_online(tag, body)
         return
+    replace = len(args) == 2 and args[0] == "--replace"
+    if replace: args = args[1:]
     if len(args) != 1 or not re.fullmatch(r"\d+\.\d+\.\d+", args[0]):
         sys.exit(__doc__)
     version = args[0]
@@ -84,9 +88,16 @@ def main():
     sha = hashlib.sha256(exe.read_bytes()).hexdigest()
     (OUT / "Tidy-Setup.exe.sha256").write_text(f"{sha}  Tidy-Setup.exe", encoding="ascii")
 
-    run(GH, "release", "create", tag, "--repo", REPO, "--target", "main", "--title", f"Tidy {version}",
-        "--notes-file", str(push_notes(tag, body)),
-        str(OUT / "Tidy-Setup.exe"), str(OUT / "Tidy-Portable.exe"), str(OUT / "Tidy-Setup.exe.sha256"))
+    files = [str(OUT / "Tidy-Setup.exe"), str(OUT / "Tidy-Portable.exe"), str(OUT / "Tidy-Setup.exe.sha256")]
+    if replace:
+        # the tag follows the code the new files were built from
+        run("git", "tag", "-f", tag, "HEAD")
+        run("git", "push", "-f", "origin", f"refs/tags/{tag}")
+        run(GH, "release", "upload", tag, "--repo", REPO, "--clobber", *files)
+        run(GH, "release", "edit", tag, "--repo", REPO, "--notes-file", str(push_notes(tag, body)))
+    else:
+        run(GH, "release", "create", tag, "--repo", REPO, "--target", "main", "--title", f"Tidy {version}",
+            "--notes-file", str(push_notes(tag, body)), *files)
     verify_online(tag, body)
     assets = json.loads(run(GH, "api", f"repos/{REPO}/releases/tags/{tag}", capture_output=True).stdout)["assets"]
     for a in assets:

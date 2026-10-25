@@ -42,9 +42,10 @@ public partial class MainWindow : FluentWindow
         Views.Hub.Pending = null;
     }
 
-    void Toast_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e) => Toasts.Pause((Toast)((FrameworkElement)sender).DataContext);
-    void Toast_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) => Toasts.Restart((Toast)((FrameworkElement)sender).DataContext);
-    void ToastClose_Click(object sender, RoutedEventArgs e) => Toasts.Close((Toast)((FrameworkElement)sender).DataContext);
+    // a closed toast's element still gets MouseLeave as it vanishes, with WPF's {DisconnectedItem} as DataContext: ignore it
+    void Toast_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e) { if (((FrameworkElement)sender).DataContext is Toast t) Toasts.Pause(t); }
+    void Toast_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) { if (((FrameworkElement)sender).DataContext is Toast t && Toasts.Items.Contains(t)) Toasts.Restart(t); }
+    void ToastClose_Click(object sender, RoutedEventArgs e) { if (((FrameworkElement)sender).DataContext is Toast t) Toasts.Close(t); }
 
     void OnFound(Release r) => Dispatcher.BeginInvoke(() => ShowUpdate(r));
 

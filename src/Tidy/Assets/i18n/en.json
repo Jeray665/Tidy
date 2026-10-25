@@ -1951,6 +1951,7 @@
  "{0} apps quitadas.": "{0} apps removed.",
  "Algunas no se pudieron quitar": "Some couldn't be removed",
  "Apps: si un programa no se deja instalar ni actualizar como administrador (por ejemplo Spicetify), Tidy lo vuelve a intentar solo, como tu usuario normal y sin permisos de administrador.": "Apps: if a program won't install or update as administrator (Spicetify, for example), Tidy tries again by itself as your normal user, without administrator rights.",
+ "Cerrar una notificación con la X ya no muestra el error \"Algo ha fallado\".": "Closing a notification with the X no longer shows the \"Something went wrong\" error.",
  "Descargas y Duplicados tienen ahora los mismos filtros que el análisis de disco: por tipo de archivo, por tamaño y columnas que se ordenan con un clic. En Duplicados cada grupo de copias se mueve entero.": "Downloads and Duplicates now have the same filters as disk analysis: by file type, by size, and columns you sort with one click. In Duplicates each group of copies moves as a whole.",
  "Descargas: \"Mover a otra carpeta\", igual que en el análisis de disco, y se devuelve todo a su sitio desde Historial.": "Downloads: \"Move to another folder\", just like in disk analysis, and everything goes back to its place from History.",
  "La pestaña Descargas ya no deja la app sin responder mientras carga muchos archivos.": "The Downloads tab no longer makes the app stop responding while it loads many files.",
