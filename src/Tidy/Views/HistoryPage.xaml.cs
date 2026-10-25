@@ -221,7 +221,9 @@ public partial class HistoryPage : Page
                 case "recycle": Ui.OpenFolder("shell:RecycleBinFolder"); return;
                 case "startup" when arg == "": MainWindow.Current?.Navigate(typeof(StartupPage)); return;
             }
-            if (!await Ui.Confirm($"¿{UndoLabel(e.Undo)}?", $"{e.Title}\n\n" + kind switch
+            // hosts: the full list of what goes back, the same one Copias de seguridad shows
+            var hostsCopy = kind == "hosts" ? Network.HostsBackups().FirstOrDefault(h => h.Name == arg) : null;
+            if (!await Ui.Confirm($"¿{UndoLabel(e.Undo)}?", hostsCopy != null ? await BackupsPage.HostsChanges(hostsCopy) : $"{e.Title}\n\n" + kind switch
                 {
                     "tweak" => "Se devuelve el valor que había antes de que Tidy lo cambiara.",
                     "service" => "El servicio vuelve al tipo de inicio que tenía antes de Tidy (los cambios posteriores también se deshacen).",
@@ -242,7 +244,7 @@ public partial class HistoryPage : Page
                 "service" => Services.Restore(arg),
                 "task" => ScheduledTasks.RestoreOriginal(arg),
                 "dns" => Network.RestoreDns() > 0,
-                "hosts" => Network.HostsBackups().FirstOrDefault(h => h.Name == arg) is { } h && Do(() => Network.WriteHosts(File.ReadAllText(h.FullName))),
+                "hosts" => Network.HostsBackups().FirstOrDefault(h => h.Name == arg) is { } h && Do(() => Network.RestoreHosts(h)),
                 "quarantine" => Uninstaller.Quarantines().FirstOrDefault(q => q.Id == arg) is { } q && Uninstaller.Restore(q).Failed == 0,
                 "winget" => Winget.Uninstall(arg).Ok,
                 "startup" => StartupApps.Restore(arg),

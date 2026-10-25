@@ -1,5 +1,11 @@
 # Novedades de Tidy
 
+## 1.0.4
+- Menú nuevo, más corto: las secciones parecidas van juntas en pestañas (por ejemplo, Rendimiento, Inicio de Windows y Optimizaciones), y lo técnico queda en Avanzado.
+- Copias del archivo hosts: solo se guarda una copia cuando el archivo cambia de verdad. "Qué cambia" te enseña todo lo que se deshace al restaurar una copia, paso a paso, y "Borrar copias" te deja quitar las repetidas eligiendo tú cuáles.
+- Inicio de Windows: "¿Qué alarga el arranque?" te enseña lo que Windows ha visto retrasar tus arranques del último mes y cuántos segundos, y te deja quitar del inicio las apps que se pueden quitar.
+- Ajustes: limpieza programada. Elige si Tidy te avisa o limpia solo, cada cuánto y qué categorías. La papelera nunca se vacía sola, y cada limpieza automática queda en Historial con la lista de lo borrado.
+
 ## 1.0.3
 - Procesos: "¿Qué gasta en segundo plano?" mide durante 10 segundos los programas abiertos sin ventana y te enseña lo que gasta cada uno. Puedes quitarlos del inicio o cerrarlos, siempre marcando tú cada uno; nunca salen antivirus, drivers, audio, VPN ni lo que controla tu hardware.
 

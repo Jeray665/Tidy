@@ -8,6 +8,12 @@ namespace Tidy.Core;
 
 public record BootTime(DateTime When, double Seconds);
 
+public enum BootSlowKind { App, Driver, Service, Device }
+
+/// <param name="File">The exe or driver file as Windows logged it (a service or device has its name here).</param>
+/// <param name="Times">How many boots it delayed; AvgSec is the delay per boot.</param>
+public record BootSlow(BootSlowKind Kind, string Name, string File, int Times, double AvgSec, DateTime Last);
+
 public record Measurement(DateTime When, string Label, double? BootSec, double RamUsedGb, int Processes, int StartupApps, int ServicesRunning, double FreeCGb);
 
 /// <summary>Before/after numbers: boot time from Windows' own log, plus a snapshot of how loaded the PC is.</summary>
@@ -41,6 +47,42 @@ public static class Benchmark
             BootError = admin ? $"No se pudo leer el registro de arranques de Windows: {e.Message}" : "Windows solo deja leer los tiempos de arranque con permisos de administrador.";
         }
         return list;
+    }
+
+    /// <summary>
+    /// What made recent boots slower, worst first. Windows logs it itself when a boot is slow: event 101 an app, 102 a driver,
+    /// 103 a service, 109 a device, each with how many ms it delayed that boot.
+    /// </summary>
+    public static List<BootSlow> Slowdowns(int days = 30)
+    {
+        var seen = new List<(BootSlowKind Kind, string Name, string File, double Sec, DateTime When)>();
+        BootError = null;
+        try
+        {
+            var q = new EventLogQuery("Microsoft-Windows-Diagnostics-Performance/Operational", PathType.LogName,
+                $"*[System[(EventID=101 or EventID=102 or EventID=103 or EventID=109) and TimeCreated[timediff(@SystemTime) <= {days * 86_400_000L}]]]");
+            using var reader = new EventLogReader(q);
+            for (var e = reader.ReadEvent(); e != null; e = reader.ReadEvent())
+                using (e)
+                {
+                    XNamespace ns = "http://schemas.microsoft.com/win/2004/08/events/event";
+                    var data = XDocument.Parse(e.ToXml()).Descendants(ns + "Data")
+                        .GroupBy(d => (string?)d.Attribute("Name") ?? "").ToDictionary(g => g.Key, g => g.First().Value.Trim());
+                    var kind = e.Id switch { 101 => BootSlowKind.App, 102 => BootSlowKind.Driver, 103 => BootSlowKind.Service, _ => BootSlowKind.Device };
+                    var file = data.GetValueOrDefault("FileName") is { Length: > 0 } f ? f : data.GetValueOrDefault("Name") ?? "";
+                    var name = data.GetValueOrDefault("FriendlyName") is { Length: > 0 } n ? n : Path.GetFileNameWithoutExtension(file);
+                    if (name != "" && double.TryParse(data.GetValueOrDefault("DegradationTime"), out var ms) && ms > 0 && e.TimeCreated is { } when)
+                        seen.Add((kind, name, file, ms / 1000, when));
+                }
+        }
+        catch (Exception e)
+        {
+            Store.Log($"Boot slowdowns: {e.Message}");
+            BootError = "Windows solo deja leer qué retrasa el arranque con permisos de administrador.";
+        }
+        return seen.GroupBy(s => (s.Kind, Key: (s.File != "" ? s.File : s.Name).ToLowerInvariant()))
+            .Select(g => new BootSlow(g.Key.Kind, g.First().Name, g.First().File, g.Count(), g.Average(s => s.Sec), g.Max(s => s.When)))
+            .OrderByDescending(b => b.Times * b.AvgSec).ToList();
     }
 
     public static Measurement Measure(string label)

@@ -137,8 +137,8 @@ public partial class NetworkPage : Page
         if (box.Text == text) return;
         try
         {
-            var copy = await Task.Run(() => Network.WriteHosts(box.Text));
-            Ui.Toast("Archivo hosts guardado", $"La versión anterior está guardada en Copias de seguridad.");
+            if (await Task.Run(() => Network.WriteHosts(box.Text, "Archivo hosts editado a mano")) == null) Ui.Toast("Sin cambios", "El archivo hosts ya estaba así.");
+            else Ui.Toast("Archivo hosts guardado", "La versión anterior está guardada en Copias de seguridad.");
         }
         catch (Exception ex) { Ui.Toast("No se pudo guardar", ex.Message, ControlAppearance.Danger); }
         await Refresh();

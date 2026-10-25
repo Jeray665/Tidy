@@ -67,6 +67,8 @@ public sealed class Tray : IDisposable
             game != null ? $"Modo juego activado: {game}" : "Modo juego terminado: todo vuelve a como estaba."));
         CleanReminder.Due += bytes => _app.Dispatcher.BeginInvoke(() => Balloon(typeof(Views.CleanerPage),
             $"Puedes liberar {Store.FormatBytes(bytes)} de archivos temporales. Haz clic para ver la lista (no se borra nada sin preguntarte)."));
+        CleanReminder.Cleaned += r => _app.Dispatcher.BeginInvoke(() => Balloon(typeof(Views.BackupsPage),
+            $"Limpieza automática: {Store.FormatBytes(r.Bytes)} liberados. Haz clic para ver la lista exacta de lo borrado."));
 
         Live.Updated += s => _app.Dispatcher.BeginInvoke(() =>
         {

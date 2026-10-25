@@ -161,11 +161,21 @@ public static class Memory
     }
 }
 
-/// <summary>Tells the user when there's a lot to clean. It only scans: cleaning still goes through the confirmation list.</summary>
+/// <summary>
+/// Scheduled cleanup. By default it only tells the user when there's a lot to clean (cleaning still goes through the confirmation list).
+/// With AutoClean the user chose, once and with the list in front of them, to let it clean the chosen categories by itself:
+/// every run saves the exact list of what was deleted and says so in a notification. The recycle bin is never emptied this way.
+/// </summary>
 public static class CleanReminder
 {
     public static event Action<long>? Due;
+    public static event Action<Cleaner.CleanReport>? Cleaned;
     static DateTime _lastCheck = DateTime.Now; // first look an hour after start, never during boot
+    static int _running;
+
+    /// <summary>The categories the schedule covers. Automatic cleaning never includes the recycle bin: your own files are in it.</summary>
+    public static List<CleanCategory> Scheduled(bool auto) =>
+        Cleaner.Categories.Where(c => (Store.Settings.CleanCategories?.Contains(c.Id) ?? c.DefaultOn) && !(auto && c.RecycleBin)).ToList();
 
     public static void Tick()
     {
@@ -174,13 +184,31 @@ public static class CleanReminder
         _lastCheck = DateTime.Now;
         var period = TimeSpan.FromDays(s.CleanReminderDays);
         if (s.LastClean is { } c && DateTime.Now - c < period) return;
-        if (s.LastCleanReminder is { } r && DateTime.Now - r < period) return; // one reminder per period, no nagging
+        if (s.LastCleanReminder is { } r && DateTime.Now - r < period) return; // one reminder (or automatic run) per period, no nagging
         if (GameMode.Current != null) return; // never while playing
-        var bytes = Cleaner.Categories.Where(x => x.DefaultOn).Sum(x => Cleaner.Scan(x).Bytes);
+        if (Interlocked.Exchange(ref _running, 1) == 1) return;
         s.LastCleanReminder = DateTime.Now;
         Store.Save();
-        Store.Log($"Cleanup reminder: {Store.FormatBytes(bytes)} can be freed.");
-        if (bytes >= 300L << 20) Due?.Invoke(bytes);
+        var auto = s.AutoClean;
+        // off the monitor's timer: scanning and deleting can take a while
+        Task.Run(() =>
+        {
+            try
+            {
+                var scans = Scheduled(auto).Select(Cleaner.Scan).ToList();
+                var bytes = scans.Sum(x => x.Bytes);
+                Store.Log($"Scheduled cleanup ({(auto ? "automatic" : "reminder")}): {Store.FormatBytes(bytes)} can be freed.");
+                if (!auto) { if (bytes >= 300L << 20) Due?.Invoke(bytes); return; }
+                if (bytes == 0 || GameMode.Current != null) return;
+                var report = Cleaner.Clean(scans, automatic: true);
+                s.LastClean = DateTime.Now;
+                s.LastCleanBytes = report.Bytes;
+                Store.Save();
+                Cleaned?.Invoke(report);
+            }
+            catch (Exception e) { Store.Log($"Scheduled cleanup failed: {e.Message}"); }
+            finally { _running = 0; }
+        });
     }
 }
 

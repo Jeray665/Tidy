@@ -194,7 +194,7 @@ public static class Cleaner
     public record CleanReport(int Deleted, long Bytes, int Skipped, string ListFile);
 
     /// <summary>Deletes exactly the confirmed items. Each one is re-validated against its category roots right before deletion.</summary>
-    public static CleanReport Clean(IEnumerable<ScanResult> confirmed)
+    public static CleanReport Clean(IEnumerable<ScanResult> confirmed, bool automatic = false)
     {
         int deleted = 0, skipped = 0; long bytes = 0;
         var list = new StringBuilder();
@@ -218,7 +218,7 @@ public static class Cleaner
         var listFile = Path.Combine(logDir, $"cleanup-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
         File.WriteAllText(listFile, list.ToString(), Encoding.UTF8);
         Store.Log($"Cleanup: {deleted} items deleted ({Store.FormatBytes(bytes)}), {skipped} skipped (in use or protected). List: {listFile}");
-        if (deleted > 0) History.Add(HistoryKind.Clean, $"Limpieza: {Store.FormatBytes(bytes)} liberados", $"{deleted} archivos (no se pueden recuperar). Lista: {Path.GetFileName(listFile)}");
+        if (deleted > 0) History.Add(HistoryKind.Clean, automatic ? $"Limpieza automática: {Store.FormatBytes(bytes)} liberados" : $"Limpieza: {Store.FormatBytes(bytes)} liberados",$"{deleted} archivos (no se pueden recuperar). Lista: {Path.GetFileName(listFile)}");
         return new CleanReport(deleted, bytes, skipped, listFile);
     }
 

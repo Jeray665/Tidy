@@ -76,6 +76,20 @@ public partial class StartupPage : Page
         }
     }
 
+    async void Slow_Click(object sender, RoutedEventArgs e)
+    {
+        SlowBtn.IsEnabled = false;
+        List<PresetItem> items;
+        try { items = await Task.Run(() => StartupPresets.BootItems(Benchmark.Slowdowns(), StartupApps.List())); }
+        finally { SlowBtn.IsEnabled = true; }
+        if (Benchmark.BootError is { } err) { Ui.Toast("No se pudo leer", err, ControlAppearance.Caution); return; }
+        if (items.Count == 0) { Ui.Toast("Nada lo alarga", "En el último mes Windows no ha apuntado ningún retraso al arrancar."); return; }
+        if (await Review("Qué alarga el arranque",
+                "Lo que Windows ha visto retrasar tus arranques del último mes, de lo que más tiempo cuesta a lo que menos. Las apps de inicio que se pueden quitar vienen marcadas: siguen instaladas y se deshace en Historial.",
+                items, "Tidy: arranque"))
+            await Reload();
+    }
+
     async Task Apply(int level, List<PresetItem> items)
     {
         var name = StartupPresets.Names[level - 1];
@@ -84,8 +98,8 @@ public partial class StartupPage : Page
             await Reload();
     }
 
-    /// <summary>Shows the full list with the reason for each item; only what stays ticked is changed. True if anything was applied.</summary>
-    internal static async Task<bool> Review(string title, string intro, List<PresetItem> items, string restorePoint)
+    /// <summary>The list grouped by kind, each item with its reason. Info items can't be ticked: they only explain.</summary>
+    static (StackPanel Content, List<(CheckBox Box, PresetItem Item)> Boxes) ReviewList(string intro, List<PresetItem> items)
     {
         var list = new StackPanel();
         var boxes = new List<(CheckBox Box, PresetItem Item)>();
@@ -96,9 +110,10 @@ public partial class StartupPage : Page
                 Text = group.Key switch
                 {
                     PresetKind.App => "Apps de inicio (se desactivan, no se desinstalan)", PresetKind.Service => "Servicios",
-                    PresetKind.Task => "Tareas programadas (se desactivan)", _ => "Cerrar ahora (sin guardar; la abres cuando quieras)",
+                    PresetKind.Task => "Tareas programadas (se desactivan)", PresetKind.Process => "Cerrar ahora (sin guardar; la abres cuando quieras)",
+                    _ => "También lo retrasan, pero Tidy no los toca",
                 },
-                FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, boxes.Count == 0 ? 0 : 12, 0, 6),
+                FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, list.Children.Count == 0 ? 0 : 12, 0, 6),
             });
             foreach (var i in group)
             {
@@ -106,6 +121,7 @@ public partial class StartupPage : Page
                 text.Children.Add(new System.Windows.Controls.TextBlock { Text = i.Name, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
                 // translated piece by piece: the joined sentence isn't a known text
                 text.Children.Add(Ui.Text($"{I18n.T(i.Detail).TrimEnd('.')}. {I18n.T(i.Why)}", "Muted", 0));
+                if (i.Kind == PresetKind.Info) { text.Margin = new Thickness(0, 0, 0, 8); list.Children.Add(text); continue; }
                 var box = new CheckBox { IsChecked = i.On, Content = text, Margin = new Thickness(0, 0, 0, 6) };
                 boxes.Add((box, i));
                 list.Children.Add(box);
@@ -114,6 +130,15 @@ public partial class StartupPage : Page
         var content = new StackPanel { Width = 640 };
         content.Children.Add(Ui.Text(intro, null, 12));
         content.Children.Add(new ScrollViewer { Content = list, MaxHeight = 380, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 10, 0) });
+        return (content, boxes);
+    }
+
+    /// <summary>Shows the full list with the reason for each item; only what stays ticked is changed. True if anything was applied.</summary>
+    internal static async Task<bool> Review(string title, string intro, List<PresetItem> items, string restorePoint)
+    {
+        var (content, boxes) = ReviewList(intro, items);
+        // nothing that can be changed: just the explanation, no "apply" button that would do nothing
+        if (items.All(i => i.Kind == PresetKind.Info)) { await Ui.Info(title, content); return false; }
         if (!await Ui.Confirm(title, content, "Aplicar lo marcado")) return false;
 
         var chosen = boxes.Where(b => b.Box.IsChecked == true).Select(b => b.Item).ToList();

@@ -112,24 +112,125 @@ public static class Network
     public static bool HasBlockList => ReadHosts().Contains(BlockStart);
     static string HostsBackupDir => Path.Combine(Store.SecureDir, "hosts");
 
-    /// <summary>Saves a dated copy first, then writes. Every version can be restored from Copias de seguridad.</summary>
-    public static string WriteHosts(string content)
+    /// <summary>
+    /// Saves a dated copy first, then writes. Every version can be restored from Copias de seguridad.
+    /// Null when the content is the same as now: nothing is written and no copy is made.
+    /// </summary>
+    public static string? WriteHosts(string content, string title = "Archivo hosts modificado")
     {
+        if (SameHosts(content, ReadHosts())) return null;
         Directory.CreateDirectory(HostsBackupDir);
-        var copy = Path.Combine(HostsBackupDir, $"hosts-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
-        if (File.Exists(HostsPath)) File.Copy(HostsPath, copy, true);
+        // milliseconds too: two changes in the same second must not overwrite each other's copy
+        var copy = Path.Combine(HostsBackupDir, $"hosts-{DateTime.Now:yyyyMMdd-HHmmss-fff}.txt");
+        if (File.Exists(HostsPath)) File.Copy(HostsPath, copy, false);
         var ro = HostsReadOnly;
         if (ro) File.SetAttributes(HostsPath, File.GetAttributes(HostsPath) & ~FileAttributes.ReadOnly);
         File.WriteAllText(HostsPath, content, new UTF8Encoding(false));
         if (ro) File.SetAttributes(HostsPath, File.GetAttributes(HostsPath) | FileAttributes.ReadOnly);
         Store.Run("ipconfig.exe", "/flushdns");
         Store.Log($"Hosts file saved ({content.Length:N0} characters). Previous copy: {copy}");
-        History.Add(HistoryKind.Network, "Archivo hosts modificado", $"Copia anterior: {Path.GetFileName(copy)}", File.Exists(copy) ? $"hosts:{Path.GetFileName(copy)}" : null);
+        History.Add(HistoryKind.Network, title, $"Copia anterior: {Path.GetFileName(copy)}", File.Exists(copy) ? $"hosts:{Path.GetFileName(copy)}" : null);
         return copy;
     }
 
+    /// <summary>Newest first (names carry the date and time, so they sort in order).</summary>
     public static List<FileInfo> HostsBackups() => Directory.Exists(HostsBackupDir)
-        ? new DirectoryInfo(HostsBackupDir).GetFiles("hosts-*.txt").OrderByDescending(f => f.CreationTime).ToList() : [];
+        ? new DirectoryInfo(HostsBackupDir).GetFiles("hosts-*.txt").OrderByDescending(f => f.Name, StringComparer.Ordinal).ToList() : [];
+
+    /// <summary>When the copy was saved, from its name (hosts-yyyyMMdd-HHmmss[-fff]): file dates change when files are copied around.</summary>
+    public static DateTime HostsCopyTime(FileInfo copy) =>
+        DateTime.TryParseExact(Path.GetFileNameWithoutExtension(copy.Name)[6..].PadRight(19, '0')[..15], "yyyyMMdd-HHmmss",
+            System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var t) ? t : copy.CreationTime;
+
+    /// <summary>Same entries: line endings and trailing spaces don't count as a change.</summary>
+    public static bool SameHosts(string a, string b) => NormHosts(a) == NormHosts(b);
+    static string NormHosts(string s) => string.Join("\n", s.Replace("\r", "").Split('\n').Select(l => l.TrimEnd())).Trim();
+
+    /// <summary>One change Tidy made to hosts: the lines it added and the ones it took out (the block list counts as one line).</summary>
+    public record HostsChange(DateTime When, string Title, List<string> Added, List<string> Removed);
+
+    /// <summary>
+    /// What restoring <paramref name="copy"/> undoes: every change made since it was saved (newest first, changes that changed nothing left out),
+    /// and the end result against the file as it is now (Added = lines that disappear, Removed = lines that come back).
+    /// </summary>
+    public static (List<HostsChange> Steps, HostsChange Net) HostsUndo(FileInfo copy)
+    {
+        var timeline = HostsTimeline();
+        var steps = timeline.SkipWhile(t => t.Copy.Name != copy.Name).Select(t => t.Change).Where(c => c.Added.Count + c.Removed.Count > 0).Reverse().ToList();
+        var (gone, back) = DiffHosts(File.ReadAllText(copy.FullName), ReadHosts());
+        return (steps, new(HostsCopyTime(copy), "", gone, back));
+    }
+
+    /// <summary>Every copy, oldest first, with the change that came after it (from that copy to the next one, or to the file as it is now).</summary>
+    public static List<(FileInfo Copy, HostsChange Change)> HostsTimeline()
+    {
+        var titles = History.All().Where(e => e.Undo?.StartsWith("hosts:") == true).GroupBy(e => e.Undo![6..]).ToDictionary(g => g.Key, g => g.First());
+        var copies = HostsBackups(); copies.Reverse();
+        var texts = copies.Select(f => File.ReadAllText(f.FullName)).Append(ReadHosts()).ToList();
+        var list = new List<(FileInfo, HostsChange)>();
+        for (int i = 0; i < copies.Count; i++)
+        {
+            var (added, removed) = DiffHosts(texts[i], texts[i + 1]);
+            var entry = titles.GetValueOrDefault(copies[i].Name);
+            // older versions of Tidy logged every change as "modificado": say what it was when it's the block list
+            var title = added.Count + removed.Count == 0 ? "un guardado que no cambió nada"
+                : entry?.Title is { } t && t != "Archivo hosts modificado" ? t
+                : added.Any(l => l.StartsWith(BlockLabel)) ? "Lista de bloqueo de anuncios activada"
+                : removed.Any(l => l.StartsWith(BlockLabel)) ? "Lista de bloqueo de anuncios quitada" : "Archivo hosts modificado";
+            list.Add((copies[i], new(entry?.When ?? HostsCopyTime(copies[i]), title, added, removed)));
+        }
+        return list;
+    }
+
+    const string BlockLabel = "Lista de bloqueo de anuncios";
+
+    /// <summary>Lines in <paramref name="to"/> but not in <paramref name="from"/> and the other way round, counting repeats. Order of the file is kept.</summary>
+    internal static (List<string> Added, List<string> Removed) DiffHosts(string from, string to)
+    {
+        var a = HostsEntries(from); var b = HostsEntries(to);
+        var left = a.GroupBy(l => l).ToDictionary(g => g.Key, g => g.Count());
+        var added = new List<string>();
+        foreach (var l in b)
+            if (left.TryGetValue(l, out var n) && n > 0) left[l] = n - 1; else added.Add(l);
+        var removed = new List<string>();
+        foreach (var l in a)
+            if (left.TryGetValue(l, out var n) && n > 0) { removed.Add(l); left[l] = n - 1; }
+        return (added, removed);
+    }
+
+    /// <summary>Non-empty lines, with Tidy's block list folded into one line (80.000 domains would bury the rest).</summary>
+    static List<string> HostsEntries(string text)
+    {
+        var list = new List<string>();
+        int? block = null;
+        foreach (var raw in text.Replace("\r", "").Split('\n'))
+        {
+            var l = raw.Trim();
+            if (l == BlockStart) { block = 0; continue; }
+            if (block != null)
+            {
+                // ponytail: compared by domain count; an updated list with exactly the same count would show as unchanged
+                if (l == BlockEnd) { list.Add($"{BlockLabel} ({block:N0} dominios)"); block = null; }
+                else if (l != "") block++;
+                continue;
+            }
+            if (l != "") list.Add(l);
+        }
+        return list;
+    }
+
+    /// <summary>Only Tidy's own copies, and never more than asked.</summary>
+    public static int DeleteHostsBackups(IEnumerable<FileInfo> copies)
+    {
+        var dir = Path.GetFullPath(HostsBackupDir);
+        var n = 0;
+        foreach (var f in copies)
+            if (string.Equals(Path.GetDirectoryName(Path.GetFullPath(f.FullName)), dir, StringComparison.OrdinalIgnoreCase) && f.Name.StartsWith("hosts-") && f.Extension == ".txt")
+                try { File.Delete(f.FullName); n++; } catch (Exception e) { Store.Log($"Hosts copy {f.Name} not deleted: {e.Message}"); }
+        Store.Log($"Hosts copies deleted: {n}");
+        if (n > 0) History.Add(HistoryKind.Network, "Copias del archivo hosts borradas", $"{n} copias");
+        return n;
+    }
 
     public static void SetHostsReadOnly(bool on)
     {
@@ -152,11 +253,15 @@ public static class Network
             .Where(l => BlockLine.IsMatch(l) && l != "0.0.0.0 0.0.0.0").Distinct().ToList();
         if (lines.Count < 1000) return (false, "La lista descargada no parece válida; no se ha tocado nada.");
         var current = RemoveBlock(ReadHosts()).TrimEnd();
-        WriteHosts($"{current}\r\n\r\n{BlockStart}\r\n{string.Join("\r\n", lines)}\r\n{BlockEnd}\r\n");
+        WriteHosts($"{current}\r\n\r\n{BlockStart}\r\n{string.Join("\r\n", lines)}\r\n{BlockEnd}\r\n", "Lista de bloqueo de anuncios activada");
         return (true, $"{lines.Count:N0} dominios de anuncios y rastreo bloqueados.");
     }
 
-    public static void RemoveBlockList() => WriteHosts(RemoveBlock(ReadHosts()).TrimEnd() + "\r\n");
+    public static void RemoveBlockList() => WriteHosts(RemoveBlock(ReadHosts()).TrimEnd() + "\r\n", "Lista de bloqueo de anuncios quitada");
+
+    /// <summary>False when the file already was like that copy (nothing written, no new copy).</summary>
+    public static bool RestoreHosts(FileInfo copy) =>
+        WriteHosts(File.ReadAllText(copy.FullName), $"Archivo hosts restaurado a la copia del {HostsCopyTime(copy):dd/MM/yyyy HH:mm}") != null;
 
     static string RemoveBlock(string s)
     {

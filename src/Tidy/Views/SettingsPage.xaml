@@ -52,19 +52,43 @@
             </ui:CardControl.Header>
             <ui:ToggleSwitch x:Name="AutoRam" Click="AutoRam_Click" />
         </ui:CardControl>
-        <ui:CardControl Icon="{ui:SymbolIcon Alert24}" Margin="0,0,0,6">
-            <ui:CardControl.Header>
-                <StackPanel>
-                    <TextBlock Text="Recordatorio de limpieza" FontWeight="SemiBold" />
-                    <TextBlock Style="{StaticResource Muted}" Text="Si hace tiempo que no limpias y hay más de 300 MB que liberar, te avisa con una notificación. Nunca borra nada por su cuenta." />
+
+        <TextBlock Text="Limpieza programada" Style="{StaticResource Section}" />
+        <Border Style="{StaticResource Tile}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Symbol="Broom24" FontSize="22" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Margin="14,0" VerticalAlignment="Center">
+                        <TextBlock Text="Qué hace Tidy cada cierto tiempo" FontWeight="SemiBold" />
+                        <TextBlock x:Name="CleanModeHint" Style="{StaticResource Muted}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ComboBox x:Name="CleanMode" Grid.Column="2" Width="200" VerticalAlignment="Center" SelectionChanged="CleanMode_Changed">
+                        <ComboBoxItem Content="Nada" />
+                        <ComboBoxItem Content="Avisarme" />
+                        <ComboBoxItem Content="Limpiar solo" />
+                    </ComboBox>
+                </Grid>
+                <StackPanel x:Name="CleanOptions" Margin="36,14,0,0">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <TextBlock Text="Cada cuánto" VerticalAlignment="Center" Width="110" />
+                        <ComboBox x:Name="CleanEvery" Width="200" SelectionChanged="CleanEvery_Changed">
+                            <ComboBoxItem Content="Cada día" Tag="1" />
+                            <ComboBoxItem Content="Cada semana" Tag="7" />
+                            <ComboBoxItem Content="Cada 2 semanas" Tag="14" />
+                            <ComboBoxItem Content="Cada mes" Tag="30" />
+                        </ComboBox>
+                    </StackPanel>
+                    <TextBlock Text="Qué incluye" Margin="0,0,0,6" />
+                    <WrapPanel x:Name="CleanCats" />
+                    <TextBlock x:Name="CleanNext" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0" />
                 </StackPanel>
-            </ui:CardControl.Header>
-            <ComboBox x:Name="Reminder" Width="170" SelectionChanged="Reminder_Changed">
-                <ComboBoxItem Content="Desactivado" Tag="0" />
-                <ComboBoxItem Content="Cada semana" Tag="7" />
-                <ComboBoxItem Content="Cada mes" Tag="30" />
-            </ComboBox>
-        </ui:CardControl>
+            </StackPanel>
+        </Border>
 
         <TextBlock Text="Seguridad" Style="{StaticResource Section}" />
         <Border Style="{StaticResource Tile}">
@@ -74,7 +98,7 @@
                     <TextBlock Text="  Cómo te protege Tidy" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
                 <TextBlock Style="{StaticResource Muted}" FontSize="13" LineHeight="22" TextWrapping="Wrap"
-                           Text="• Nada se borra sin enseñarte antes la lista exacta de archivos y sin tu confirmación.&#10;• Solo limpia carpetas de una lista blanca, no entra nunca en enlaces/junctions y no toca temporales de menos de 24 h.&#10;• Cada optimización guarda el valor original antes de cambiar nada y se deshace con su interruptor.&#10;• Punto de restauración de Windows antes de optimizaciones, drivers y desinstalar apps.&#10;• Drivers solo de Windows Update o nvidia.com; el instalador de NVIDIA se rechaza si su firma digital no es válida.&#10;• La RAM se libera vaciando solo la caché en espera: no cierra programas ni pierde datos.&#10;• Sin telemetría: solo se conecta cuando tú lo pides (Windows Update y nvidia.com para drivers, winget para instalar o actualizar apps, la lista de bloqueo de anuncios) y una vez al día a GitHub para ver si hay versión nueva (se puede desactivar).&#10;• Todo lo que hace queda apuntado en un registro que puedes revisar." />
+                           Text="• Nada se borra sin enseñarte antes la lista exacta de archivos y sin tu confirmación. Solo si activas la limpieza automática limpia sola lo que tú marques (nunca la papelera) y guarda la lista de lo borrado.&#10;• Solo limpia carpetas de una lista blanca, no entra nunca en enlaces/junctions y no toca temporales de menos de 24 h.&#10;• Cada optimización guarda el valor original antes de cambiar nada y se deshace con su interruptor.&#10;• Punto de restauración de Windows antes de optimizaciones, drivers y desinstalar apps.&#10;• Drivers solo de Windows Update o nvidia.com; el instalador de NVIDIA se rechaza si su firma digital no es válida.&#10;• La RAM se libera vaciando solo la caché en espera: no cierra programas ni pierde datos.&#10;• Sin telemetría: solo se conecta cuando tú lo pides (Windows Update y nvidia.com para drivers, winget para instalar o actualizar apps, la lista de bloqueo de anuncios) y una vez al día a GitHub para ver si hay versión nueva (se puede desactivar).&#10;• Todo lo que hace queda apuntado en un registro que puedes revisar." />
                 <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                     <ui:Button Content="Ver registro de actividad" Icon="{ui:SymbolIcon History24}" Click="OpenLog_Click" />
                     <ui:Button Content="Abrir carpeta de datos" Icon="{ui:SymbolIcon Folder24}" Margin="8,0,0,0" Click="OpenFolder_Click" />

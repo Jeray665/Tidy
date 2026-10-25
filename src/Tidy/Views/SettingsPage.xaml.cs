@@ -23,7 +23,7 @@ public partial class SettingsPage : Page
         Updater.Found += OnFound;
         Unloaded += (_, _) => Updater.Found -= OnFound;
         AutoRam.IsChecked = Store.Settings.AutoRam;
-        Reminder.SelectedIndex = Store.Settings.CleanReminderDays switch { 0 => 0, <= 7 => 1, _ => 2 };
+        ShowClean();
         ThemeBox.SelectedIndex = Store.Settings.Theme switch { "light" => 1, "dark" => 2, _ => 0 };
         LanguageBox.SelectedIndex = Store.Settings.Language switch { "es" => 1, "en" => 2, _ => 0 };
         Loaded += async (_, _) => Autostart.IsChecked = await Task.Run(() => Core.Autostart.IsEnabled);
@@ -48,11 +48,94 @@ public partial class SettingsPage : Page
         Store.Log($"Automatic RAM release: {(Store.Settings.AutoRam ? "on" : "off")}");
     }
 
-    void Reminder_Changed(object sender, SelectionChangedEventArgs e)
+    // ---------- scheduled cleanup ----------
+    bool _showingClean;
+    readonly List<(System.Windows.Controls.CheckBox Box, CleanCategory Category)> _cleanBoxes = [];
+
+    void ShowClean()
     {
-        if (Reminder.SelectedItem is not ComboBoxItem { Tag: string days } || !IsLoaded) return;
+        _showingClean = true;
+        var s = Store.Settings;
+        var mode = s.CleanReminderDays <= 0 ? 0 : s.AutoClean ? 2 : 1;
+        CleanMode.SelectedIndex = mode;
+        CleanEvery.SelectedIndex = s.CleanReminderDays switch { 1 => 0, > 1 and <= 7 => 1, > 7 and <= 14 => 2, _ => 3 };
+        CleanOptions.Visibility = mode == 0 ? Visibility.Collapsed : Visibility.Visible;
+        CleanModeHint.Text = mode switch
+        {
+            0 => "No te avisa ni limpia por su cuenta. Puedes limpiar cuando quieras desde Limpieza.",
+            1 => "Te avisa con una notificación si hay más de 300 MB que liberar. Nunca borra nada sin enseñarte la lista.",
+            _ => "Limpia sin preguntar solo lo que marques aquí y te avisa de lo que liberó. Cada vez guarda la lista exacta de lo borrado.",
+        };
+        CleanCats.Children.Clear();
+        _cleanBoxes.Clear();
+        var chosen = CleanReminder.Scheduled(auto: false);
+        foreach (var c in Cleaner.Categories)
+        {
+            var locked = mode == 2 && c.RecycleBin; // your own files are in it: never emptied without the list in front of you
+            var box = new System.Windows.Controls.CheckBox
+            {
+                Content = locked ? $"{c.Name} (nunca sola)" : c.Name, IsChecked = !locked && chosen.Contains(c), IsEnabled = !locked,
+                ToolTip = locked ? "La papelera nunca se vacía sola: ahí están tus archivos. Vacíala desde Limpieza, viendo la lista." : c.Description,
+                Margin = new Thickness(0, 0, 18, 6),
+            };
+            box.Click += CleanCategory_Click;
+            _cleanBoxes.Add((box, c));
+            CleanCats.Children.Add(box);
+        }
+        var last = new[] { s.LastClean, s.LastCleanReminder }.Max();
+        var next = last?.AddDays(Math.Max(1, s.CleanReminderDays));
+        // translated piece by piece: the joined sentence isn't a known text
+        CleanNext.Text = I18n.T(next is { } n && n > DateTime.Now ? $"Próxima vez: a partir del {n:dd/MM/yyyy}." : "Próxima vez: cuando Tidy lleve una hora abierto.")
+                         + " " + I18n.T("Nunca mientras juegas ni nada más encender.");
+        _showingClean = false;
+    }
+
+    async void CleanMode_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_showingClean || !IsLoaded) return;
+        var s = Store.Settings;
+        var mode = CleanMode.SelectedIndex;
+        if (mode == 2 && !s.AutoClean && !await ConfirmAutoClean(CleanReminder.Scheduled(auto: true))) { ShowClean(); return; }
+        s.AutoClean = mode == 2;
+        s.CleanReminderDays = mode == 0 ? 0 : s.CleanReminderDays > 0 ? s.CleanReminderDays : 30;
+        Store.Save();
+        Store.Log($"Scheduled cleanup: {(mode == 0 ? "off" : mode == 1 ? "remind" : "automatic")}, every {s.CleanReminderDays} days");
+        ShowClean();
+    }
+
+    void CleanEvery_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_showingClean || !IsLoaded || CleanEvery.SelectedItem is not ComboBoxItem { Tag: string days }) return;
         Store.Settings.CleanReminderDays = int.Parse(days);
         Store.Save();
+        ShowClean();
+    }
+
+    async void CleanCategory_Click(object sender, RoutedEventArgs e)
+    {
+        var (box, category) = _cleanBoxes.First(b => b.Box == sender);
+        // adding something to what gets deleted without asking deserves the same confirmation as turning it on
+        if (box.IsChecked == true && Store.Settings.AutoClean && !await ConfirmAutoClean([category])) { box.IsChecked = false; return; }
+        var ids = _cleanBoxes.Where(b => b.Box.IsChecked == true).Select(b => b.Category.Id).ToList();
+        // the recycle bin box is locked while cleaning by itself: keep whatever the reminder had
+        if (_cleanBoxes.FirstOrDefault(b => !b.Box.IsEnabled) is { Category: var locked } && CleanReminder.Scheduled(auto: false).Contains(locked)) ids.Add(locked.Id);
+        Store.Settings.CleanCategories = ids;
+        Store.Save();
+    }
+
+    static async Task<bool> ConfirmAutoClean(List<CleanCategory> cats)
+    {
+        if (cats.Count == 0) { Ui.Toast("Marca qué limpiar", "Elige al menos una cosa en \"Qué incluye\" antes de dejar que Tidy limpie solo.", ControlAppearance.Caution); return false; }
+        var content = new StackPanel { Width = 640 };
+        content.Children.Add(Ui.Text("Tidy borrará esto sin preguntarte cada vez, solo de estas carpetas:", null, 6));
+        foreach (var c in cats)
+        {
+            content.Children.Add(new System.Windows.Controls.TextBlock { Text = c.Name, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 6, 0, 0) });
+            content.Children.Add(Ui.Text(c.Description, "Muted", 4));
+        }
+        content.Children.Add(new Border { Height = 10 });
+        content.Children.Add(Ui.Text("Cada vez guarda la lista exacta de lo borrado (Copias de seguridad › Listas de archivos limpiados) y te avisa con una notificación. Nunca mientras juegas, nunca la papelera, y puedes volver a \"Avisarme\" cuando quieras.", "Muted", 0));
+        return await Ui.Confirm("¿Dejar que Tidy limpie solo?", content, "Sí, limpiar solo");
     }
 
     void Theme_Changed(object sender, SelectionChangedEventArgs e)

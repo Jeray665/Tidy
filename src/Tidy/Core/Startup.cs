@@ -181,7 +181,8 @@ public static class StartupApps
     }
 }
 
-public enum PresetKind { App, Service, Task, Process }
+/// <summary>Info: shown for context with the reason Tidy leaves it alone; never ticked or applied.</summary>
+public enum PresetKind { App, Service, Task, Process, Info }
 
 /// <summary>One thing a startup preset would change. Level 1 = Ligero, 2 = Equilibrado, 3 = Máximo.</summary>
 public record PresetItem(PresetKind Kind, string Name, string Detail, string Why, int Level, Func<(bool Ok, string Message)> Apply, bool On = true);
@@ -254,6 +255,40 @@ public static class StartupPresets
     static readonly Regex Launchers = new(@"steam|epic|eadesktop|\bea app\b|origin|ubisoft|uplay|battle\.net|gog|riot|discord|spotify|teams|skype|zoom|whatsapp|telegram|slack|messenger|opera|brave|vivaldi|\bedge\b|msedge|chrome|firefox|cortana|itunes|helper", RegexOptions.IgnoreCase);
 
     static readonly Regex Squirrel = new(@"\S*Update\.exe""?\s+--processStart", RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// What delayed the boot, as a review list: an app that starts with Windows and the presets would turn off comes ticked;
+    /// everything else (drivers, services, devices, protected apps) is listed with why Tidy leaves it alone.
+    /// </summary>
+    public static List<PresetItem> BootItems(List<BootSlow> slow, List<StartupApp> startup)
+    {
+        var list = new List<PresetItem>();
+        foreach (var s in slow)
+        {
+            var exe = Path.GetFileName(s.File);
+            var app = s.Kind == BootSlowKind.App && exe != ""
+                ? startup.FirstOrDefault(a => a.Enabled && (a.ExePath is { } e && Path.GetFileName(e).Equals(exe, StringComparison.OrdinalIgnoreCase)
+                                                             || a.Command.Contains(exe, StringComparison.OrdinalIgnoreCase)))
+                : null;
+            var level = app != null ? Level($"{app.Name} {Squirrel.Replace(app.Command, "")} {app.Publisher}") : null;
+            var times = s.Times == 1 ? "retrasó 1 arranque" : $"retrasó {s.Times} arranques";
+            var kind = s.Kind switch { BootSlowKind.App => "App", BootSlowKind.Driver => "Driver", BootSlowKind.Service => "Servicio", _ => "Dispositivo" };
+            var detail = $"{kind} · {times} · {s.AvgSec:0.0} s cada vez";
+            if (app != null && level is { } l)
+                list.Add(new(PresetKind.App, app.Name, detail, "Arranca sola con Windows. Sigue instalada y se abre normal cuando la necesites.",
+                    l, () => { StartupApps.SetEnabled(app, false); return (true, ""); }));
+            else
+                list.Add(new(PresetKind.Info, s.Name, detail, s.Kind switch
+                {
+                    BootSlowKind.App when app != null => "Es de seguridad, audio, drivers o hardware: Tidy no la quita del inicio.",
+                    BootSlowKind.App => "Ya no arranca sola con Windows, o la abre otro programa: no hay nada que quitar del inicio.",
+                    BootSlowKind.Driver => "Es un driver: lo necesita tu hardware. Si retrasa mucho, mira si hay versión nueva en Drivers.",
+                    BootSlowKind.Service => "Es un servicio: si sabes que no lo usas, míralo en Servicios y tareas.",
+                    _ => "Es un dispositivo: a veces lo retrasa un USB o un disco externo conectado al encender.",
+                }, 0, () => (false, ""), On: false));
+        }
+        return list;
+    }
 
     /// <summary>Lower level = safer to turn off. Null = never touched.</summary>
     public static int? Level(string text, bool launchersAllowed = true) =>

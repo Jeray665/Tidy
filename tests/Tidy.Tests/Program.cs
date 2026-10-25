@@ -166,6 +166,52 @@ Check(Unneeded.WindowsServices.All(s => !Services.IsProtected(s.Name, "Automáti
     "servicios que sobran: ninguno protegido ni de los que se usan (búsqueda, impresora, Bluetooth, Wi-Fi, Xbox…)");
 Check(Unneeded.WindowsServices.All(s => s.Mode is StartMode.Manual or StartMode.Disabled), "servicios que sobran: solo pasan a manual o deshabilitado");
 
+// ---- scheduled cleanup: only what you chose, and the recycle bin never by itself ----
+var savedCats = Store.Settings.CleanCategories;
+Store.Settings.CleanCategories = ["temp", "recycle"];
+Check(CleanReminder.Scheduled(auto: true).Select(c => c.Id).SequenceEqual(["temp"]) && CleanReminder.Scheduled(auto: false).Select(c => c.Id).SequenceEqual(["temp", "recycle"]),
+      "limpieza programada: solo lo marcado, y la papelera nunca se vacía sola (avisar sí)");
+Store.Settings.CleanCategories = null;
+Check(CleanReminder.Scheduled(auto: true).All(c => c.DefaultOn && !c.RecycleBin) && new Settings().AutoClean == false, "limpieza programada: por defecto solo avisa, con lo que Limpieza marca de serie");
+Store.Settings.CleanCategories = savedCats;
+
+// ---- what slows the boot: made-up slowdowns, nothing applied ----
+StartupApp FakeStartup(string name, string command, string? exe, bool on = true) => new()
+{
+    Name = name, Command = command, ExePath = exe, Enabled = on, Location = "Registro", ApprovedHive = Microsoft.Win32.Registry.CurrentUser, ApprovedKey = "x", ApprovedName = name,
+};
+var bootItems = StartupPresets.BootItems([
+        new(BootSlowKind.App, "Discord", "Discord.exe", 3, 2.5, DateTime.Now),
+        new(BootSlowKind.App, "NZXT CAM", @"C:\Program Files\NZXT CAM\NZXT CAM.exe", 2, 4, DateTime.Now),
+        new(BootSlowKind.App, "Steam", "steam.exe", 1, 1, DateTime.Now),
+        new(BootSlowKind.Driver, "nvlddmkm", "nvlddmkm.sys", 5, 0.8, DateTime.Now),
+        new(BootSlowKind.Service, "Windows Search", "WSearch", 2, 1.2, DateTime.Now)],
+    [FakeStartup("Discord", @"""C:\Users\x\AppData\Local\Discord\Update.exe"" --processStart Discord.exe", @"C:\Users\x\AppData\Local\Discord\Update.exe"),
+     FakeStartup("NZXT CAM", @"""C:\Program Files\NZXT CAM\NZXT CAM.exe"" --startup", @"C:\Program Files\NZXT CAM\NZXT CAM.exe"),
+     FakeStartup("Steam", @"""C:\Program Files (x86)\Steam\steam.exe"" -silent", @"C:\Program Files (x86)\Steam\steam.exe", on: false)]);
+Check(bootItems.Count == 5 && bootItems.Where(i => i.Kind == PresetKind.App).Select(i => i.Name).SequenceEqual(["Discord"]) && bootItems.Single(i => i.Kind == PresetKind.App).On
+      && bootItems.Where(i => i.Kind == PresetKind.Info).All(i => !i.On),
+      "arranque: solo se ofrece quitar del inicio lo que se puede (Discord); hardware, apps ya desactivadas, drivers y servicios solo se explican");
+
+// ---- hosts copies: only on a real change, and the restore list says exactly what goes back (fake copies in the sandbox; the real hosts is only read) ----
+Check(Network.SameHosts("127.0.0.1 a  \r\n\r\n", "127.0.0.1 a\n") && !Network.SameHosts("127.0.0.1 a", "127.0.0.1 b"), "hosts: saltos de línea y espacios finales no cuentan como cambio");
+var block = "# >>> Tidy: bloqueo de anuncios (no editar a mano) >>>\r\n0.0.0.0 x.com\r\n0.0.0.0 y.com\r\n# <<< Tidy: bloqueo de anuncios <<<\r\n";
+var (hAdd, hDel) = Network.DiffHosts("127.0.0.1 a\n127.0.0.1 a\n", "127.0.0.1 a\n0.0.0.0 b\n" + block);
+Check(hAdd.SequenceEqual(["0.0.0.0 b", "Lista de bloqueo de anuncios (2 dominios)"]) && hDel.SequenceEqual(["127.0.0.1 a"]), "hosts: diferencias línea a línea, repetidas incluidas, y la lista de bloqueo como una sola línea");
+var hostsDir = Directory.CreateDirectory(Path.Combine(Store.SecureDir, "hosts")).FullName;
+File.WriteAllText(Path.Combine(hostsDir, "hosts-20200101-000000.txt"), "127.0.0.1 a\n");
+File.WriteAllText(Path.Combine(hostsDir, "hosts-20200101-000001.txt"), "127.0.0.1 a\n0.0.0.0 b\n");
+File.WriteAllText(Path.Combine(hostsDir, "hosts-20200101-000002.txt"), "127.0.0.1 a\n0.0.0.0 b\n"); // repeated: a write that changed nothing
+File.WriteAllText(Path.Combine(hostsDir, "hosts-20200101-000003.txt"), "0.0.0.0 b\n");
+var undo = Network.HostsUndo(Network.HostsBackups().Last());
+var older = undo.Steps.SkipWhile(s => !s.Removed.Contains("127.0.0.1 a")).ToList();
+Check(older.Count == 2 && older[0].Removed.SequenceEqual(["127.0.0.1 a"]) && older[0].Added.Count == 0 && older[1].Added.SequenceEqual(["0.0.0.0 b"]) && older[1].Removed.Count == 0
+      && Network.HostsTimeline()[1].Change.Added.Count + Network.HostsTimeline()[1].Change.Removed.Count == 0,
+      "hosts: restaurar la copia más antigua lista cada cambio (borró, añadió) del más reciente al más antiguo, sin los que no cambiaron nada");
+Check(Network.DeleteHostsBackups([new FileInfo(Path.Combine(hostsDir, "hosts-20200101-000002.txt")), new FileInfo(Path.Combine(Path.GetTempPath(), "hosts-20200101-000002.txt"))]) == 1
+      && Network.HostsBackups().Count == 3, "hosts: borrar copias solo toca copias de Tidy, nunca un archivo de otra carpeta");
+Directory.Delete(hostsDir, true);
+
 // ---- disk scan console: only parsed here, never run (Repair-Volume needs admin and touches the real disk) ----
 var scanPs = Encoding.Unicode.GetString(Convert.FromBase64String(Repairs.ScanScript()));
 var parse = Process.Start(new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, @"WindowsPowerShell\v1.0\powershell.exe"),

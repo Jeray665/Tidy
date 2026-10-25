@@ -26,8 +26,12 @@ public class Settings
     /// <summary>Plan to go back to when the game closes. Saved so a crash mid-game still restores it on the next start.</summary>
     public Guid? GameModePrevPlan { get; set; }
 
-    /// <summary>0 = off; otherwise remind (never clean) when this many days passed since the last cleaning.</summary>
+    /// <summary>0 = off; otherwise when this many days passed since the last cleaning, remind (or clean by itself if AutoClean).</summary>
     public int CleanReminderDays { get; set; } = 30;
+    /// <summary>Clean on schedule without asking: only the chosen categories, never the recycle bin. Off = only remind.</summary>
+    public bool AutoClean { get; set; }
+    /// <summary>Cleanup category ids the schedule covers. Null = the ones ticked by default on the Cleanup page.</summary>
+    public List<string>? CleanCategories { get; set; }
     /// <summary>"system" (follow Windows), "light" or "dark".</summary>
     public string Theme { get; set; } = "system";
     /// <summary>"es", "en" or "" for the same as Windows.</summary>
