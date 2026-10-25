@@ -2,6 +2,7 @@
 // throwaway HKCU\Software\TidyTest key. Usage: Tidy.Tests <sandboxDir> [--wu]
 using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using Tidy.Core;
 
@@ -303,6 +304,24 @@ using (File.Open(running, FileMode.Open, FileAccess.Read, FileShare.Read | FileS
 Check(File.ReadAllText(running) == "new" && File.ReadAllText(Path.Combine(swapDir, "Tidy.old.exe")) == "old", "actualizar: cambia el .exe aunque esté abierto y guarda el anterior");
 var log = Changelog.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\..\CHANGELOG.md"))));
 Check(log.Count >= 2 && log[0].Version.ToString() == System.Diagnostics.FileVersionInfo.GetVersionInfo(tidyExe).ProductVersion?.Split('+')[0] && log.All(v => v.Items.Count > 0), $"novedades: CHANGELOG.md tiene la versión de Tidy.exe ({log[0].Version}) con sus cambios");
+
+// ---- texts: every UI string, doc and note is valid UTF-8 without broken accents (UTF-8 read as ANSI) ----
+var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\..\"));
+var strictUtf8 = new UTF8Encoding(false, throwOnInvalidBytes: true);
+var brokenText = new List<string>();
+foreach (var f in Directory.EnumerateFiles(repoRoot, "*", SearchOption.AllDirectories)
+    .Where(f => new[] { ".cs", ".xaml", ".md", ".csproj", ".py", ".manifest" }.Contains(Path.GetExtension(f).ToLowerInvariant()))
+    .Where(f => !Regex.IsMatch(f, @"\\(bin|obj|dist|\.git)\\")))
+{
+    try
+    {
+        var text = strictUtf8.GetString(File.ReadAllBytes(f)).TrimStart('\uFEFF');
+        var at = text.IndexOfAny(['\u00C3', '\u00C2', '\uFFFD', '\uFEFF']);
+        if (at >= 0) brokenText.Add($"{Path.GetRelativePath(repoRoot, f)}:{text[..at].Count(c => c == '\n') + 1}");
+    }
+    catch (DecoderFallbackException) { brokenText.Add($"{Path.GetRelativePath(repoRoot, f)} (no es UTF-8)"); }
+}
+Check(brokenText.Count == 0, $"textos: sin acentos rotos ni archivos fuera de UTF-8 {string.Join(", ", brokenText)}");
 
 // ---- Read-only probes of the real system ----
 SysMon.Cpu(); Thread.Sleep(500);

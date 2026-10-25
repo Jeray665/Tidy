@@ -38,6 +38,14 @@ Pruebas de seguridad (se ejecutan en una carpeta aislada):
 dotnet run --project tests/Tidy.Tests
 ```
 
+Publicar una versión (sube `<Version>` en `src/Tidy/Tidy.csproj`, añade su entrada a `CHANGELOG.md` y haz commit antes):
+
+```
+python tools/release.py 1.2.0
+```
+
+Compila, crea Tidy-Setup.exe, Tidy-Portable.exe y su `.sha256`, publica la release y comprueba en GitHub que las notas no tienen acentos rotos y que la huella coincide.
+
 ## Licencia
 
 Tidy es software libre bajo la [GNU GPL v3](LICENSE): puedes usarlo, estudiarlo, modificarlo y compartirlo, y cualquier versión modificada que se publique tiene que seguir siendo libre y con su código.
