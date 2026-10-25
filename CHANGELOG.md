@@ -1,5 +1,13 @@
 # Novedades de Tidy
 
+## 1.1.0
+- Al abrir Tidy se comprueba si hay versión nueva, y si la hay sale un aviso arriba con "Actualizar" y "Ocultar aviso".
+- Análisis de disco renovado: tabla con filtros por tipo (documentos, imágenes, comprimidos, vídeos, audio) y por tamaño, columnas que se ordenan con un clic y el total de lo que marcas.
+- "Mover a otra carpeta" en el análisis de disco, por ejemplo a otro disco para liberar C:. No pisa ningún archivo y se devuelve todo a su sitio desde Historial.
+- Más seguro: los archivos de programas (AppData) y de juegos instalados (Steam, Xbox, Epic, Riot, EA…) ya no se pueden marcar para mover ni borrar.
+- Las listas largas (aplicaciones, procesos, servicios, tareas, almacenamiento) ocupan toda la ventana en vez de quedarse cortas.
+- Las pestañas de cada sección marcan claramente en cuál estás, en modo claro y oscuro.
+
 ## 1.0.4
 - Menú nuevo, más corto: las secciones parecidas van juntas en pestañas (por ejemplo, Rendimiento, Inicio de Windows y Optimizaciones), y lo técnico queda en Avanzado.
 - Copias del archivo hosts: solo se guarda una copia cuando el archivo cambia de verdad. "Qué cambia" te enseña todo lo que se deshace al restaurar una copia, paso a paso, y "Borrar copias" te deja quitar las repetidas eligiendo tú cuáles.

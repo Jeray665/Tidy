@@ -16,6 +16,9 @@ public record FoundFile(string Path, long Size, DateTime Modified, bool Protecte
     public string Folder => System.IO.Path.GetDirectoryName(Path) ?? "";
 }
 
+public enum FileKind { Document, Image, Archive, Video, Audio, Other }
+public record MovedFile(string From, string To);
+
 public record FolderSize(string Path, long Size);
 public record DiskScan(List<FoundFile> Large, List<FolderSize> Folders, long Files, long Bytes);
 public record DuplicateGroup(long Size, List<FoundFile> Files);
@@ -42,8 +45,30 @@ public static class Storage
         var root = Path.GetPathRoot(path) ?? "";
         foreach (var name in new[] { "$Recycle.Bin", "System Volume Information", "Recovery", "$WinREAgent", "Windows.old" })
             if (path.StartsWith(Path.Combine(root, name) + "\\", StringComparison.OrdinalIgnoreCase)) return true;
+        // programs' own data (Chrome, VS Code, game launchers…): moving or deleting it breaks them. Their caches are Limpieza's job; Temp stays free.
+        var local = Up(Environment.SpecialFolder.LocalApplicationData);
+        if (path.StartsWith(Up(Environment.SpecialFolder.ApplicationData) + "\\", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(local + "\\", StringComparison.OrdinalIgnoreCase) && !path.StartsWith(Path.Combine(local, "Temp") + "\\", StringComparison.OrdinalIgnoreCase)) return true;
+        // installed games: their big files are the game itself; moving or deleting one breaks it (uninstall them from Aplicaciones)
+        foreach (var lib in GameLibraries)
+            if (path.Contains(lib, StringComparison.OrdinalIgnoreCase)) return true;
         return Path.GetFileName(path).ToLowerInvariant() is "pagefile.sys" or "hiberfil.sys" or "swapfile.sys" or "dumpstack.log.tmp";
     }
+
+    static readonly string[] GameLibraries =
+        [@"\XboxGames\", @"\steamapps\", @"\Epic Games\", @"\Riot Games\", @"\EA Games\", @"\Ubisoft Game Launcher\", @"\GOG Galaxy\Games\", @"\WindowsApps\"];
+
+    static readonly Dictionary<string, FileKind> Kinds = new[]
+    {
+        (FileKind.Document, ".pdf .doc .docx .xls .xlsx .ppt .pptx .odt .ods .odp .rtf .txt .csv .md .epub"),
+        (FileKind.Image, ".jpg .jpeg .png .gif .bmp .webp .heic .tif .tiff .psd .svg .ico .raw .dng .cr2 .nef .arw"),
+        (FileKind.Archive, ".zip .rar .7z .tar .gz .tgz .bz2 .xz .zst .cab .iso"),
+        (FileKind.Video, ".mp4 .mkv .avi .mov .wmv .webm .flv .m4v .mpg .mpeg .ts .3gp"),
+        (FileKind.Audio, ".mp3 .wav .flac .aac .ogg .m4a .wma .opus .aiff"),
+    }.SelectMany(k => k.Item2.Split(' ').Select(ext => (ext, k.Item1))).ToDictionary(x => x.ext, x => x.Item2, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>By extension only: the file is never opened.</summary>
+    public static FileKind Kind(string path) => Kinds.GetValueOrDefault(Path.GetExtension(path), FileKind.Other);
 
     static EnumerationOptions Opts(bool recurse) => new()
     {
@@ -72,7 +97,7 @@ public static class Storage
             if (len >= minSize)
             {
                 large.Enqueue(new FoundFile(f.FullName, len, f.LastWriteTime, IsProtected(f.FullName, f.Attributes)), len);
-                if (large.Count > 300) large.Dequeue();
+                if (large.Count > 3000) large.Dequeue();
             }
             if (sw.ElapsedMilliseconds > 250) { progress?.Report($"{files:N0} archivos · {Store.FormatBytes(bytes)} · {f.DirectoryName}"); sw.Restart(); }
         }
@@ -148,6 +173,76 @@ public static class Storage
         foreach (var f in ok) Store.Log($"  recycled: {f.Path}");
         if (gone > 0) History.Add(HistoryKind.Files, $"{gone} archivos a la Papelera", Store.FormatBytes(ok.Where(f => !File.Exists(f.Path)).Sum(f => f.Size)), "recycle");
         return (gone, skipped + ok.Count - gone);
+    }
+
+    /// <summary>Moves the files into <paramref name="dest"/> (e.g. another disk), never overwriting: a clash gets " (2)".
+    /// What went where is kept in the admin-only folder so Historial can put every file back.</summary>
+    public static (int Moved, int Skipped) Move(IEnumerable<FoundFile> files, string dest, IProgress<string>? progress = null)
+    {
+        if (IsProtected(Path.Combine(dest, "x")) || !Directory.Exists(dest)) throw new IOException("Esa carpeta no vale como destino.");
+        var moved = new List<MovedFile>();
+        var list = files.ToList();
+        long bytes = 0;
+        foreach (var f in list)
+        {
+            if (f.Protected || IsProtected(f.Path) || !File.Exists(f.Path) || File.GetAttributes(f.Path).HasFlag(FileAttributes.ReparsePoint)) continue;
+            if (string.Equals(Path.GetDirectoryName(f.Path), dest.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) continue;
+            progress?.Report($"Moviendo {moved.Count + 1} de {list.Count}: {f.Name}");
+            var to = Free(Path.Combine(dest, f.Name));
+            try { File.Move(f.Path, to); moved.Add(new(f.Path, to)); bytes += f.Size; }
+            catch (Exception e) { Store.Log($"Storage: couldn't move {f.Path}: {e.Message}"); }
+        }
+        if (moved.Count > 0)
+        {
+            var id = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
+            Directory.CreateDirectory(Store.MovesDir);
+            File.WriteAllText(Path.Combine(Store.MovesDir, id + ".json"), System.Text.Json.JsonSerializer.Serialize(moved));
+            foreach (var m in moved) Store.Log($"  moved: {m.From} -> {m.To}");
+            History.Add(HistoryKind.Files, $"{moved.Count} archivos movidos a {dest}", Store.FormatBytes(bytes), $"moved:{id}");
+        }
+        return (moved.Count, list.Count - moved.Count);
+    }
+
+    static string Free(string path)
+    {
+        var (dir, name, ext) = (Path.GetDirectoryName(path)!, Path.GetFileNameWithoutExtension(path), Path.GetExtension(path));
+        for (var i = 2; File.Exists(path) || Directory.Exists(path); i++) path = Path.Combine(dir, $"{name} ({i}){ext}");
+        return path;
+    }
+
+    public static List<MovedFile>? MoveRecord(string id)
+    {
+        var file = Path.Combine(Store.MovesDir, id + ".json");
+        if (id.Contains('\\') || id.Contains('/') || id.Contains("..") || !File.Exists(file)) return null;
+        try { return System.Text.Json.JsonSerializer.Deserialize<List<MovedFile>>(File.ReadAllText(file)); } catch { return null; }
+    }
+
+    /// <summary>Moves that still have something to put back (for Historial's button).</summary>
+    public static IEnumerable<string> Moves() => Directory.Exists(Store.MovesDir)
+        ? Directory.EnumerateFiles(Store.MovesDir, "*.json").Select(f => Path.GetFileNameWithoutExtension(f)).Where(id => MoveRecord(id)?.Any(m => File.Exists(m.To)) == true)
+        : [];
+
+    /// <summary>Puts each file back where it was. Skips (and keeps in the record) any whose old place is taken again.</summary>
+    public static bool UndoMove(string id)
+    {
+        if (MoveRecord(id) is not { } moved) return false;
+        var left = new List<MovedFile>();
+        foreach (var m in moved)
+        {
+            if (!File.Exists(m.To)) continue;
+            try
+            {
+                if (File.Exists(m.From) || IsProtected(m.From)) throw new IOException("su sitio original está ocupado");
+                Directory.CreateDirectory(Path.GetDirectoryName(m.From)!);
+                File.Move(m.To, m.From);
+            }
+            catch (Exception e) { Store.Log($"Storage: couldn't move back {m.To}: {e.Message}"); left.Add(m); }
+        }
+        var file = Path.Combine(Store.MovesDir, id + ".json");
+        if (left.Count == 0) File.Delete(file);
+        else File.WriteAllText(file, System.Text.Json.JsonSerializer.Serialize(left));
+        Store.Log($"Storage: move {id} undone, {left.Count} left");
+        return left.Count == 0;
     }
 }
 

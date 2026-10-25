@@ -32,6 +32,17 @@ public static class Updater
         try { await Check(); } catch (Exception e) { Store.Log($"Update check failed: {e.Message}"); }
     }, null, TimeSpan.FromSeconds(30), TimeSpan.FromHours(3));
 
+    /// <summary>Each time the window opens. Skipped if the user turned checks off, or checked a moment ago
+    /// (GitHub allows 60 anonymous requests an hour).</summary>
+    public static void CheckOnOpen()
+    {
+        if (!Store.Settings.AutoUpdateCheck || DateTime.Now - (Store.Settings.LastUpdateCheck ?? DateTime.MinValue) < TimeSpan.FromMinutes(15)) return;
+        Task.Run(async () =>
+        {
+            try { await Check(); } catch (Exception e) { Store.Log($"Update check failed: {e.Message}"); }
+        });
+    }
+
     public static async Task<Release?> Check()
     {
         Release? r;

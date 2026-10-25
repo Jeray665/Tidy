@@ -188,6 +188,24 @@ public partial class SettingsPage : Page
 
     async void Update_Click(object sender, RoutedEventArgs e)
     {
+        UpdateBtn.IsEnabled = CheckBtn.IsEnabled = false;
+        try
+        {
+            await RunUpdate(new Progress<double>(p =>
+            {
+                UpdateProgress.Visibility = Visibility.Visible;
+                UpdateProgress.Value = p;
+                UpdateStatus.Text = p < 1 ? "Descargando…" : "Comprobando e instalando…";
+            }));
+            ShowUpdateState();
+        }
+        finally { UpdateBtn.IsEnabled = CheckBtn.IsEnabled = true; UpdateProgress.Visibility = Visibility.Collapsed; }
+    }
+
+    /// <summary>Asks first, then downloads, verifies, installs and restarts Tidy. Shared by Settings and the banner
+    /// at the top of the window. Returns only if the user said no or something failed (nothing is changed then).</summary>
+    internal static async Task RunUpdate(IProgress<double> progress)
+    {
         if (Updater.Available is not { } r) return;
         var content = new StackPanel { MaxWidth = 640 };
         content.Children.Add(Ui.Text("Tidy se descarga de su página de GitHub y solo se instala si el archivo es exactamente el publicado (mismo tamaño y huella SHA-256). Luego se cierra y vuelve a abrirse ya actualizado.\n\nSe conservan tus ajustes, el historial, las copias de seguridad y lo que tengas optimizado."));
@@ -198,13 +216,10 @@ public partial class SettingsPage : Page
         }
         if (!await Ui.Confirm($"Actualizar a Tidy {r.Version}", content, "Descargar y actualizar")) return;
 
-        UpdateBtn.IsEnabled = CheckBtn.IsEnabled = false;
-        UpdateProgress.Visibility = Visibility.Visible;
-        UpdateStatus.Text = "Descargando…";
         try
         {
-            var file = await Updater.Download(r, new Progress<double>(p => UpdateProgress.Value = p));
-            UpdateStatus.Text = "Comprobado. Instalando…";
+            progress.Report(0);
+            var file = await Updater.Download(r, progress);
             await Task.Run(() => Updater.Apply(file));
             ((App)Application.Current).Restart();
         }
@@ -212,9 +227,7 @@ public partial class SettingsPage : Page
         {
             Store.Log($"Update failed: {ex}");
             Ui.Toast("No se pudo actualizar", ex.Message + " No se ha cambiado nada.", ControlAppearance.Danger);
-            ShowUpdateState();
         }
-        finally { UpdateBtn.IsEnabled = CheckBtn.IsEnabled = true; UpdateProgress.Visibility = Visibility.Collapsed; }
     }
 
     void AutoUpdate_Click(object sender, RoutedEventArgs e)

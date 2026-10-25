@@ -141,6 +141,7 @@ public partial class HistoryPage : Page
         if (Network.HasDnsBackup) set.Add("dns");
         foreach (var h in Network.HostsBackups()) set.Add($"hosts:{h.Name}");
         foreach (var q in Uninstaller.Quarantines()) set.Add($"quarantine:{q.Id}");
+        foreach (var m in Storage.Moves()) set.Add($"moved:{m}");
         var plans = PowerPlan.All();
         foreach (var p in plans.Where(p => !p.Active)) set.Add($"power:{p.Id}");
         set.Add("recycle");
@@ -206,7 +207,7 @@ public partial class HistoryPage : Page
     static string UndoLabel(string undo) => undo.Split(':')[0] switch
     {
         "tweak" => "Deshacer", "service" or "task" or "dns" => "Volver a como estaba", "hosts" => "Restaurar versión anterior",
-        "quarantine" => "Restaurar restos", "winget" => "Desinstalar", "recycle" => "Abrir Papelera", "power" => "Volver al plan anterior", "powertime" => "Volver al tiempo anterior",
+        "quarantine" => "Restaurar restos", "moved" => "Devolver a su sitio", "winget" => "Desinstalar", "recycle" => "Abrir Papelera", "power" => "Volver al plan anterior", "powertime" => "Volver al tiempo anterior",
         "policies" => "Volver a bloquearlas",
         "startup" => undo.Contains(':') ? "Volver a como estaba" : "Ir a Inicio de Windows", _ => "Deshacer",
     };
@@ -231,6 +232,7 @@ public partial class HistoryPage : Page
                     "dns" => "Todas tus conexiones vuelven al DNS que tenían antes de Tidy.",
                     "hosts" => "Se pone la versión del archivo hosts de antes de este cambio. La actual se guarda también como copia.",
                     "quarantine" => "Los restos vuelven a su sitio original.",
+                    "moved" => "Cada archivo vuelve a la carpeta de donde se movió. Si allí ya hay otro con el mismo nombre, ese se queda donde está y no se pisa nada.",
                     "winget" => "Se desinstala el programa con su desinstalador oficial.",
                     "power" => "Se vuelve a activar el plan de energía anterior.",
                     "powertime" => "Se vuelve a poner el tiempo que había antes en el plan activo.",
@@ -246,6 +248,7 @@ public partial class HistoryPage : Page
                 "dns" => Network.RestoreDns() > 0,
                 "hosts" => Network.HostsBackups().FirstOrDefault(h => h.Name == arg) is { } h && Do(() => Network.RestoreHosts(h)),
                 "quarantine" => Uninstaller.Quarantines().FirstOrDefault(q => q.Id == arg) is { } q && Uninstaller.Restore(q).Failed == 0,
+                "moved" => Storage.UndoMove(arg),
                 "winget" => Winget.Uninstall(arg).Ok,
                 "startup" => StartupApps.Restore(arg),
                 "policies" => Repairs.RestorePolicies(arg),

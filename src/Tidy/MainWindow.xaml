@@ -12,6 +12,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -21,7 +22,29 @@
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 
-        <ui:NavigationView x:Name="Nav" Grid.Row="1"
+        <!-- new version: shown at the top until the user updates or hides it for that version -->
+        <Border x:Name="UpdateBanner" Grid.Row="1" Visibility="Collapsed" Margin="12,0,12,8" Padding="16,12" CornerRadius="8" BorderThickness="1"
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{StaticResource BrandBrush}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="24" Foreground="{StaticResource BrandBrush}" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Margin="14,0" VerticalAlignment="Center">
+                    <TextBlock Text="Hay una nueva versión disponible" FontWeight="SemiBold" FontSize="14" />
+                    <TextBlock x:Name="UpdateBannerText" Style="{StaticResource Muted}" FontSize="13" Margin="0,2,0,0" TextWrapping="Wrap" />
+                    <ProgressBar x:Name="UpdateBannerProgress" Maximum="1" Margin="0,8,0,0" Visibility="Collapsed" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:Button x:Name="UpdateBannerBtn" Appearance="Primary" Content="Actualizar" Icon="{ui:SymbolIcon ArrowDownload24}" Click="BannerUpdate_Click" />
+                    <ui:Button x:Name="UpdateBannerHide" Content="Ocultar aviso" Margin="8,0,0,0" Click="BannerHide_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <ui:NavigationView x:Name="Nav" Grid.Row="2"
                            PaneDisplayMode="Left" OpenPaneLength="232"
                            IsBackButtonVisible="Collapsed" IsPaneToggleVisible="True"
                            FrameMargin="0">
@@ -41,9 +64,9 @@
             </ui:NavigationView.FooterMenuItems>
         </ui:NavigationView>
 
-        <ui:ContentDialogHost x:Name="DialogHost" Grid.Row="0" Grid.RowSpan="2" />
+        <ui:ContentDialogHost x:Name="DialogHost" Grid.Row="0" Grid.RowSpan="3" />
         <!-- notifications: up to 3 stacked bottom-right, repeats grouped as ×N -->
-        <ItemsControl x:Name="ToastStack" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,20" Width="380"
+        <ItemsControl x:Name="ToastStack" Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,20" Width="380"
                       ItemsSource="{x:Static local:Toasts.Items}" Focusable="False">
             <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="{x:Type local:Toast}">

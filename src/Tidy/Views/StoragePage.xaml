@@ -2,6 +2,7 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:local="clr-namespace:Tidy"
       Title="Almacenamiento">
     <Page.Resources>
         <!-- one selectable file row (large files, downloads, duplicates) -->
@@ -98,15 +99,79 @@
                         <TextBlock x:Name="ScanStatus" Grid.Column="2" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="14,0,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
                                    Text="Recorre el disco una vez (1-3 minutos) y te dice qué carpetas y archivos ocupan más." />
                     </Grid>
-                    <Grid x:Name="ScanResults" Margin="0,14,0,0" Visibility="Collapsed">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="16" />
-                            <ColumnDefinition Width="1.4*" />
-                        </Grid.ColumnDefinitions>
+                    <StackPanel x:Name="ScanResults" Margin="0,14,0,0" Visibility="Collapsed">
+                        <!-- type chips (with counts) and the size filter -->
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <WrapPanel x:Name="KindChips" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Tamaño" FontWeight="SemiBold" VerticalAlignment="Center" Margin="12,0,8,0" />
+                                <ComboBox x:Name="MinSize" Width="160" SelectedIndex="1" SelectionChanged="FileFilter_Changed">
+                                    <ComboBoxItem Content="Más de 10 MB" Tag="10485760" />
+                                    <ComboBoxItem Content="Más de 100 MB" Tag="104857600" />
+                                    <ComboBoxItem Content="Más de 1 GB" Tag="1073741824" />
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+                        <!-- column headers: click to sort, again to reverse -->
+                        <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Padding="0,0,0,4" Margin="0,0,0,2">
+                            <Grid x:Name="Headers">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="100" />
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="44" />
+                                </Grid.ColumnDefinitions>
+                                <ui:Button Grid.Column="1" Content="Nombre" Tag="name" Click="Sort_Click" Appearance="Transparent" BorderThickness="0" Padding="6,4" Margin="5,0,0,0" />
+                                <ui:Button Grid.Column="2" Content="Modificado" Tag="date" Click="Sort_Click" Appearance="Transparent" BorderThickness="0" Padding="6,4" Margin="6,0,0,0" />
+                                <ui:Button Grid.Column="3" Content="Tamaño" Tag="size" Click="Sort_Click" Appearance="Transparent" BorderThickness="0" Padding="6,4" HorizontalAlignment="Right" Margin="0,0,-6,0" />
+                                <ui:Button Grid.Column="4" Content="Ubicación" Tag="path" Click="Sort_Click" Appearance="Transparent" BorderThickness="0" Padding="6,4" Margin="18,0,0,0" />
+                            </Grid>
+                        </Border>
+                        <ListBox x:Name="LargeList" Style="{StaticResource RowList}" local:Ui.FillBelow="52">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ToolTip="{Binding LockReason}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="26" />
+                                            <ColumnDefinition Width="2*" />
+                                            <ColumnDefinition Width="130" />
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="2*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox IsChecked="{Binding Selected, Mode=TwoWay}" IsEnabled="{Binding CanSelect}" VerticalAlignment="Center" MinWidth="0" />
+                                        <ui:SymbolIcon Grid.Column="1" Symbol="{Binding KindIcon}" FontSize="18" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="13" VerticalAlignment="Center" Margin="6,0,8,0" ToolTip="{Binding Name}" />
+                                        <TextBlock Grid.Column="3" Text="{Binding DateText}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="4" Text="{Binding SizeText}" VerticalAlignment="Center" HorizontalAlignment="Right" FontWeight="SemiBold" Margin="0,0,6,0" />
+                                        <TextBlock Grid.Column="5" Text="{Binding Folder}" Style="{StaticResource Muted}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="18,0,8,0" ToolTip="{Binding Path}" />
+                                        <ui:Button Grid.Column="6" Icon="{ui:SymbolIcon FolderOpen24}" Padding="7,5" ToolTip="Abrir ubicación" Tag="{Binding Path}" Click="Locate_Click" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="LargeSel" Style="{StaticResource Muted}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <ui:Button x:Name="MoveBtn" Content="Mover a otra carpeta…" Icon="{ui:SymbolIcon FolderArrowRight24}" Click="Move_Click" IsEnabled="False" />
+                                <ui:Button x:Name="LargeRecycle" Content="Enviar a la Papelera" Icon="{ui:SymbolIcon Delete24}" Appearance="Danger" Margin="8,0,0,0" Tag="LargeList" Click="Recycle_Click" IsEnabled="False" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="Carpetas que más ocupan" Style="{StaticResource Section}" />
                         <StackPanel>
-                            <TextBlock Text="Carpetas que más ocupan" FontWeight="SemiBold" Margin="2,0,0,8" />
-                            <ListBox x:Name="FolderList" Style="{StaticResource RowList}" Height="520" MouseDoubleClick="FolderList_DoubleClick">
+                            <ListBox x:Name="FolderList" Style="{StaticResource RowList}" Height="420" MouseDoubleClick="FolderList_DoubleClick">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel ToolTip="{Binding Path}">
@@ -122,15 +187,7 @@
                             </ListBox>
                             <TextBlock Text="Doble clic para abrir la carpeta." Style="{StaticResource Muted}" Margin="2,6,0,0" />
                         </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="Archivos más grandes (más de 100 MB)" FontWeight="SemiBold" Margin="2,0,0,8" />
-                            <ListBox x:Name="LargeList" Style="{StaticResource RowList}" Height="520" ItemTemplate="{StaticResource FileRow}" />
-                            <Grid Margin="0,8,0,0">
-                                <TextBlock x:Name="LargeSel" Style="{StaticResource Muted}" VerticalAlignment="Center" Text="Los archivos de Windows y de programas no se pueden marcar." />
-                                <ui:Button HorizontalAlignment="Right" Content="Enviar marcados a la Papelera" Icon="{ui:SymbolIcon Delete24}" Appearance="Danger" Tag="LargeList" Click="Recycle_Click" />
-                            </Grid>
-                        </StackPanel>
-                    </Grid>
+                    </StackPanel>
                 </StackPanel>
             </TabItem>
 
@@ -147,7 +204,7 @@
                             <ui:Button Content="Desmarcar todo" Click="UnselectDownloads_Click" />
                         </StackPanel>
                     </Grid>
-                    <ListBox x:Name="DownloadList" Style="{StaticResource RowList}" Height="520" Margin="0,10,0,0" ItemTemplate="{StaticResource FileRow}" />
+                    <ListBox x:Name="DownloadList" Style="{StaticResource RowList}" local:Ui.FillBelow="48" Margin="0,10,0,0" ItemTemplate="{StaticResource FileRow}" />
                     <ui:Button HorizontalAlignment="Right" Margin="0,8,0,0" Content="Enviar marcados a la Papelera" Icon="{ui:SymbolIcon Delete24}" Appearance="Danger" Tag="DownloadList" Click="Recycle_Click" />
                 </StackPanel>
             </TabItem>
@@ -171,7 +228,7 @@
                         </ComboBox>
                         <TextBlock x:Name="DupStatus" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="14,0,0,0" />
                     </StackPanel>
-                    <ListBox x:Name="DupList" Style="{StaticResource RowList}" Height="520" Margin="0,12,0,0" Visibility="Collapsed">
+                    <ListBox x:Name="DupList" Style="{StaticResource RowList}" local:Ui.FillBelow="48" Margin="0,12,0,0" Visibility="Collapsed">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <ContentControl Content="{Binding}">

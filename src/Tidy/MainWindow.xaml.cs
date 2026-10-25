@@ -19,6 +19,7 @@ public partial class MainWindow : FluentWindow
         {
             Nav.Navigate(typeof(Views.HomePage));
             Dispatcher.BeginInvoke(ShowWhatsNew, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Updater.CheckOnOpen();
         };
         ShowUpdate(Updater.Available);
         Updater.Found += OnFound;
@@ -51,6 +52,36 @@ public partial class MainWindow : FluentWindow
     {
         UpdateItem.Visibility = r != null ? Visibility.Visible : Visibility.Collapsed;
         if (r != null) UpdateItem.Content = $"Nueva actualización ({r.Version})";
+        UpdateBanner.Visibility = r != null && Store.Settings.DismissedUpdate != r.Version.ToString() ? Visibility.Visible : Visibility.Collapsed;
+        if (r != null) UpdateBannerText.Text = $"Tidy {r.Version} · Tus ajustes, historial y copias se conservan al actualizar.";
+    }
+
+    async void BannerUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateBannerBtn.IsEnabled = UpdateBannerHide.IsEnabled = false;
+        try
+        {
+            await Views.SettingsPage.RunUpdate(new Progress<double>(p =>
+            {
+                UpdateBannerProgress.Visibility = Visibility.Visible;
+                UpdateBannerProgress.Value = p;
+                UpdateBannerText.Text = p < 1 ? "Descargando…" : "Comprobando e instalando…";
+            }));
+        }
+        finally
+        {
+            UpdateBannerBtn.IsEnabled = UpdateBannerHide.IsEnabled = true;
+            UpdateBannerProgress.Visibility = Visibility.Collapsed;
+            ShowUpdate(Updater.Available);
+        }
+    }
+
+    // only this version: the next one shows the banner again, and "Nueva actualización" stays in the menu
+    void BannerHide_Click(object sender, RoutedEventArgs e)
+    {
+        Store.Settings.DismissedUpdate = Updater.Available?.Version.ToString();
+        Store.Save();
+        UpdateBanner.Visibility = Visibility.Collapsed;
     }
 
     /// <summary>Once after each update, over the main screen: what changed since the version the user had.</summary>

@@ -297,6 +297,30 @@ var groups = Storage.Duplicates([dupDir], 1, null, CancellationToken.None);
 Check(groups.Count == 1 && groups[0].Files.Count == 3, "duplicados: 3 copias idénticas agrupadas, el que difiere en 1 byte NO");
 var (rec, skip) = Storage.Recycle([new FoundFile(@"C:\Windows\win.ini", 1, DateTime.Now, false)]);
 Check(rec == 0 && skip == 1 && File.Exists(@"C:\Windows\win.ini"), "almacenamiento: archivo de Windows RECHAZADO aunque venga marcado como no protegido");
+Check(Storage.IsProtected(@"C:\XboxGames\Dead By Daylight\Content\pakchunk2-WinGDK.pak") && Storage.IsProtected(@"D:\SteamLibrary\steamapps\common\X\data.pak")
+      && !Storage.IsProtected(Path.Combine(sandbox, "mods.zip")), "almacenamiento: archivos de juegos instalados protegidos, los tuyos no");
+var lad = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+Check(Storage.IsProtected(Path.Combine(lad, @"Google\Chrome\User Data\weights.bin")) && Storage.IsProtected(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Code\x.db"))
+      && !Storage.IsProtected(Path.Combine(lad, @"Temp\x.tmp")), "almacenamiento: datos de programas en AppData protegidos, Temp no");
+Check(Storage.Kind("a.MP4") == FileKind.Video && Storage.Kind("b.zip") == FileKind.Archive && Storage.Kind("c.pdf") == FileKind.Document
+      && Storage.Kind("d.rpf") == FileKind.Other && Storage.Kind("sin-extension") == FileKind.Other, "almacenamiento: tipo de archivo por extensión");
+// move and put back: a name clash gets " (2)", nothing is overwritten, and undo refuses to overwrite a file that took the old place
+var mvSrc = Path.Combine(sandbox, "mv-src"); var mvDst = Path.Combine(sandbox, "mv-dst");
+Directory.CreateDirectory(mvSrc); Directory.CreateDirectory(mvDst);
+File.WriteAllText(Path.Combine(mvSrc, "a.bin"), "A"); File.WriteAllText(Path.Combine(mvSrc, "b.bin"), "B"); File.WriteAllText(Path.Combine(mvDst, "a.bin"), "otro");
+var mvFiles = new[] { "a.bin", "b.bin" }.Select(n => new FoundFile(Path.Combine(mvSrc, n), 1, DateTime.Now, false)).ToList();
+var (mvd, mvs) = Storage.Move(mvFiles, mvDst);
+var mvId = Storage.Moves().SingleOrDefault();
+Check(mvd == 2 && mvs == 0 && File.ReadAllText(Path.Combine(mvDst, "a.bin")) == "otro" && File.ReadAllText(Path.Combine(mvDst, "a (2).bin")) == "A"
+      && !File.Exists(Path.Combine(mvSrc, "a.bin")) && mvId != null && History.All()[0].Undo == $"moved:{mvId}", "mover: sin pisar nada (a (2).bin) y queda en Historial");
+File.WriteAllText(Path.Combine(mvSrc, "b.bin"), "nuevo");
+Check(!Storage.UndoMove(mvId!) && File.ReadAllText(Path.Combine(mvSrc, "a.bin")) == "A" && File.ReadAllText(Path.Combine(mvSrc, "b.bin")) == "nuevo"
+      && Storage.Moves().Contains(mvId), "mover: deshacer devuelve a.bin, NO pisa el b.bin nuevo y lo deja pendiente");
+File.Delete(Path.Combine(mvSrc, "b.bin"));
+Check(Storage.UndoMove(mvId!) && File.ReadAllText(Path.Combine(mvSrc, "b.bin")) == "B" && !Storage.Moves().Any(), "mover: al quedar libre, deshacer termina");
+Check(Storage.MoveRecord(@"..\..\history") == null, "mover: id con ruta RECHAZADO");
+bool mvThrew = false; try { Storage.Move(mvFiles, @"C:\Windows"); } catch (IOException) { mvThrew = true; }
+Check(mvThrew, "mover: carpeta de Windows como destino RECHAZADA");
 
 // ---- Processes / network ----
 var procs = Processes.List();

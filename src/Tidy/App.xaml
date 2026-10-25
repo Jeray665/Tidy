@@ -110,6 +110,36 @@
                     </Setter.Value>
                 </Setter>
             </Style>
+            <!-- sub-tabs inside a page (Servicios / Tareas, Desinstalar / Procesos…): the open one must be obvious at a glance,
+                 so it gets an accent bar under it, accent text and a background; the others stay grey -->
+            <!-- header and content both inherit TabItem.Foreground (logical tree), so it stays the normal text color and the
+                 unselected headers are dimmed with opacity, which doesn't reach the content -->
+            <Style TargetType="TabItem">
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TabItem">
+                            <Border x:Name="Bd" Margin="0,0,4,0" CornerRadius="6,6,0,0" Background="Transparent" Cursor="Hand">
+                                <Grid>
+                                    <ContentPresenter x:Name="Head" ContentSource="Header" Margin="14,8,14,10" VerticalAlignment="Center" Opacity="0.6" />
+                                    <Border x:Name="Bar" Height="3" CornerRadius="1.5" VerticalAlignment="Bottom" Margin="8,0" Background="Transparent" />
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                    <Setter TargetName="Head" Property="Opacity" Value="0.85" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                                    <Setter TargetName="Bar" Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                                    <Setter TargetName="Head" Property="Opacity" Value="1" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
             <Style x:Key="ColHeader" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="12" />
                 <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />

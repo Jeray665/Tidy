@@ -19,6 +19,29 @@ public abstract class Observable : System.ComponentModel.INotifyPropertyChanged
 /// <summary>Dialogs, toasts and tiny view helpers shared by all pages.</summary>
 public static class Ui
 {
+    /// <summary>Long lists (apps, processes, services…) stretch down to the bottom of the window instead of a fixed
+    /// height, leaving this much room below for the buttons under them. They keep their own scroll, so thousands of
+    /// rows stay fast; on a small window they keep 360 px and the page scrolls as before.</summary>
+    public static readonly DependencyProperty FillBelowProperty = DependencyProperty.RegisterAttached("FillBelow", typeof(double), typeof(Ui),
+        new PropertyMetadata(-1.0, (d, _) =>
+        {
+            if (d is not FrameworkElement list) return;
+            void Fit(object? s, EventArgs e)
+            {
+                if (!list.IsVisible) return;
+                DependencyObject? p = VisualTreeHelper.GetParent(list);
+                while (p != null && p is not ScrollViewer) p = VisualTreeHelper.GetParent(p);
+                if (p is not ScrollViewer page) return;
+                var top = list.TranslatePoint(new Point(0, 0), page).Y + page.VerticalOffset;
+                var h = Math.Max(360, page.ViewportHeight - top - GetFillBelow(list) - 36); // 36: the pages' bottom margin
+                if (Math.Abs(list.Height - h) > 1 || double.IsNaN(list.Height)) list.Height = h;
+            }
+            list.Loaded += (_, _) => list.LayoutUpdated += Fit;
+            list.Unloaded += (_, _) => list.LayoutUpdated -= Fit;
+        }));
+    public static double GetFillBelow(DependencyObject d) => (double)d.GetValue(FillBelowProperty);
+    public static void SetFillBelow(DependencyObject d, double v) => d.SetValue(FillBelowProperty, v);
+
     public static async Task<bool> Confirm(string title, object content, string primary, bool danger = false, string close = "Cancelar")
     {
         var w = MainWindow.Current;

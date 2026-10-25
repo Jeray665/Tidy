@@ -29,7 +29,9 @@ public class ServiceRow(ServiceInfo s)
 public class TaskRow(TaskInfo t)
 {
     public TaskInfo Info => t;
-    public string Detail => $"{t.Folder} · {(t.LastRun is { } l ? $"última vez {l:dd/MM HH:mm}" : "nunca se ha ejecutado")}" + (t.NextRun is { } n ? $" · próxima {n:dd/MM HH:mm}" : "");
+    // each piece is its own known text so the English version translates all of them
+    public string Detail => string.Join(" · ", new[] { t.Folder, t.LastRun is { } l ? $"última vez {l:dd/MM HH:mm}" : "nunca se ha ejecutado",
+        t.NextRun is { } n ? $"próxima {n:dd/MM HH:mm}" : null }.Where(p => p != null));
     public string Tip => $"{t.Path}\n{t.Description}\n\nEjecuta: {t.Action}\nAutor: {t.Author}";
     public Visibility LockVisibility => t.CanChange ? Visibility.Collapsed : Visibility.Visible;
     public Visibility ChangedVisibility => t.Changed ? Visibility.Visible : Visibility.Collapsed;

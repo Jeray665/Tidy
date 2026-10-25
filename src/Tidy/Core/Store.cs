@@ -42,6 +42,8 @@ public class Settings
 
     public bool AutoUpdateCheck { get; set; } = true;
     public DateTime? LastUpdateCheck { get; set; }
+    /// <summary>The version whose "new version" banner the user closed; a newer one shows it again.</summary>
+    public string? DismissedUpdate { get; set; }
     /// <summary>Version whose "what's new" was already shown. Null on a fresh install.</summary>
     public string? LastSeenVersion { get; set; }
     public string? LastNotifiedVersion { get; set; }
@@ -59,6 +61,8 @@ public static class Store
     public static string CleanupsDir => Path.Combine(Dir, "cleanups");
     /// <summary>Driver installers and updates: admin-only, so nothing can swap them between the check and the launch.</summary>
     public static string DownloadsDir => Path.Combine(SecureDir, "downloads");
+    /// <summary>Where each "Mover" in Almacenamiento records what went where, so it can be put back.</summary>
+    public static string MovesDir => Path.Combine(SecureDir, "moves");
     static string SettingsPath => Path.Combine(Dir, "settings.json");
     static readonly object _lock = new();
     static readonly JsonSerializerOptions _json = new() { WriteIndented = true };

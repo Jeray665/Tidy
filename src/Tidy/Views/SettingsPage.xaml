@@ -138,7 +138,7 @@
             <ui:CardControl.Header>
                 <StackPanel>
                     <TextBlock Text="Buscar actualizaciones automáticamente" FontWeight="SemiBold" />
-                    <TextBlock Style="{StaticResource Muted}" Text="Una vez al día mira en GitHub si hay una versión nueva y te avisa. Nunca instala nada sin que pulses Actualizar." />
+                    <TextBlock Style="{StaticResource Muted}" Text="Al abrir Tidy, y una vez al día si sigue abierto, mira en GitHub si hay una versión nueva y te avisa arriba. Nunca instala nada sin que pulses Actualizar." />
                 </StackPanel>
             </ui:CardControl.Header>
             <ui:ToggleSwitch x:Name="AutoUpdate" Click="AutoUpdate_Click" />
