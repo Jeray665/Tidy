@@ -65,6 +65,7 @@ public partial class App : Application
             Store.Save();
         }
         I18n.Init(Store.Settings.Language);
+        Repairs.Translate = I18n.T;
         Theme.Init();
         Live.Start();
         // logging off or shutting down mid-game: give the user's power plan back, it would otherwise outlive the reboot

@@ -231,7 +231,7 @@ public static class Repairs
                 // some PCs (security software) won't let chkdsk.exe start at all, not even as admin:
                 // the same read-only online scan through the Storage service instead
                 Store.Log("Repair: chkdsk.exe can't start on this PC, using Repair-Volume -Scan");
-                Elevated(Sys("conhost.exe"), $"\"{Sys(@"WindowsPowerShell\v1.0\powershell.exe")}\" -NoExit -NoProfile -Command Repair-Volume -DriveLetter C -Scan -Verbose");
+                Elevated(Sys("conhost.exe"), $"\"{Sys(@"WindowsPowerShell\v1.0\powershell.exe")}\" -NoExit -NoProfile -EncodedCommand {ScanScript()}");
                 return (true, "");
             case "policies":
                 // each removed value goes into the history entry, so "undo" can put back exactly that
@@ -291,6 +291,32 @@ public static class Repairs
     static void Elevated(string exe, string args) =>
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, args)
             { UseShellExecute = true, Verb = "runas", WorkingDirectory = Environment.SystemDirectory });
+
+    /// <summary>Set by the app to its translator; Core itself doesn't know the UI language.</summary>
+    public static Func<string, string> Translate { get; set; } = s => s;
+
+    /// <summary>Repair-Volume's own progress says "Repairing volume" in English and its stage messages come out with broken
+    /// accents, so the console shows Tidy's messages instead: what it does, then the result in plain words.</summary>
+    public static string ScanScript()
+    {
+        string Ps(string s) => "'" + Translate(s).Replace("'", "''") + "'";
+        string start = Ps("Analizando el disco C: en modo solo lectura (no cambia nada). Puede tardar unos minutos…"),
+               ok = Ps("Listo: el disco C: no tiene errores."),
+               found = Ps("Windows ha encontrado errores en C: ({0}). Para repararlos: Explorador de archivos > clic derecho en C: > Propiedades > Herramientas > Comprobar."),
+               failed = Ps("No se pudo analizar el disco: {0}"),
+               close = Ps("Ya puedes cerrar esta ventana.");
+        var script = $$"""
+            $global:ProgressPreference = 'SilentlyContinue'   # global: Repair-Volume's module only reads that one
+            Write-Host {{start}}
+            try {
+                $r = "$(Repair-Volume -DriveLetter C -Scan -ErrorAction Stop)"
+                if ($r -eq 'NoErrorsFound') { Write-Host {{ok}} -ForegroundColor Green }
+                else { Write-Host ({{found}} -f $r) -ForegroundColor Yellow }
+            } catch { Write-Host ({{failed}} -f $_.Exception.Message) -ForegroundColor Red }
+            Write-Host {{close}}
+            """;
+        return Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(script));
+    }
 
     static bool CanStart(string exe)
     {

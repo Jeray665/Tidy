@@ -165,6 +165,15 @@ string[] needed = ["WSearch", "Spooler", "bthserv", "WlanSvc", "lfsvc", "WbioSrv
 Check(Unneeded.WindowsServices.All(s => !Services.IsProtected(s.Name, "Automático") && !needed.Contains(s.Name, StringComparer.OrdinalIgnoreCase)),
     "servicios que sobran: ninguno protegido ni de los que se usan (búsqueda, impresora, Bluetooth, Wi-Fi, Xbox…)");
 Check(Unneeded.WindowsServices.All(s => s.Mode is StartMode.Manual or StartMode.Disabled), "servicios que sobran: solo pasan a manual o deshabilitado");
+
+// ---- disk scan console: only parsed here, never run (Repair-Volume needs admin and touches the real disk) ----
+var scanPs = Encoding.Unicode.GetString(Convert.FromBase64String(Repairs.ScanScript()));
+var parse = Process.Start(new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, @"WindowsPowerShell\v1.0\powershell.exe"),
+    "-NoProfile -NonInteractive -Command \"$e=$null; [void][Management.Automation.Language.Parser]::ParseInput([Console]::In.ReadToEnd(), [ref]$null, [ref]$e); exit $e.Count\"")
+    { RedirectStandardInput = true, UseShellExecute = false, CreateNoWindow = true })!;
+parse.StandardInput.Write(scanPs); parse.StandardInput.Close(); parse.WaitForExit();
+Check(parse.ExitCode == 0 && scanPs.Contains("Repair-Volume -DriveLetter C -Scan") && !scanPs.Contains("-SpotFix") && !scanPs.Contains("-OfflineScanAndFix"),
+    "analizar disco: el script es PowerShell válido y solo analiza (no repara)");
 File.WriteAllText(Path.Combine(Directory.CreateDirectory(Store.SecureDir).FullName, "services-backup.json"),
     "{\"SysMain\":{\"Start\":0,\"Delayed\":0},\"WinDefend\":{\"Start\":4,\"Delayed\":0}}");
 Check(!Services.Restore("SysMain") && !Services.Restore("WinDefend"), "servicios: copia manipulada (arranque de sistema / desactivar Defender) RECHAZADA");

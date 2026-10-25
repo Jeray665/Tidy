@@ -1,5 +1,8 @@
 # Novedades de Tidy
 
+## 1.0.2
+- Analizar el disco C: muestra mensajes claros (qué hace y el resultado) en vez del texto de Windows con los acentos rotos.
+
 ## 1.0.1
 - Servicios y tareas: Tidy detecta los de Windows y de tus programas que están activos sin hacer falta (telemetría, informes de errores, funciones que casi nadie usa) y te enseña la lista con el porqué de cada uno antes de cambiar nada.
 - Analizar el disco C: funciona aunque algo en el PC impida abrir chkdsk.exe: hace el mismo análisis de solo lectura con el servicio de almacenamiento de Windows.
