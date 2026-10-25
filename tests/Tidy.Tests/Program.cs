@@ -268,9 +268,10 @@ string Rel(string tag, string url, long size, string? digest, bool draft = false
     $$"""{"tag_name":"{{tag}}","draft":{{(draft ? "true" : "false")}},"prerelease":false,"body":"notas","assets":[{"name":"Tidy-Setup.exe","size":{{size}},"browser_download_url":"{{url}}"{{(digest == null ? "" : $",\"digest\":\"sha256:{digest}\"")}}}]}""";
 var tidyExe = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\..\src\Tidy\bin\Debug\net10.0-windows\win-x64\Tidy.exe"));
 var exeHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(tidyExe)));
-var okUrl = "https://github.com/Jeray665/Tidy/releases/download/v1.1.0/Tidy-Setup.exe";
-var rel = Updater.Parse(System.Text.Json.JsonDocument.Parse(Rel("v1.1.0", okUrl, new FileInfo(tidyExe).Length, exeHash)).RootElement);
-Check(rel != null && rel.Version == new Version(1, 1, 0) && rel.Sha256 == exeHash, "actualizar: lee versión, tamaño y huella de la release");
+var exeVer = new Version(System.Diagnostics.FileVersionInfo.GetVersionInfo(tidyExe).FileVersion!).ToString(3);
+var okUrl = $"https://github.com/Jeray665/Tidy/releases/download/v{exeVer}/Tidy-Setup.exe";
+var rel = Updater.Parse(System.Text.Json.JsonDocument.Parse(Rel("v" + exeVer, okUrl, new FileInfo(tidyExe).Length, exeHash)).RootElement);
+Check(rel != null && rel.Version == new Version(exeVer) && rel.Sha256 == exeHash, "actualizar: lee versión, tamaño y huella de la release");
 Check(Updater.Parse(System.Text.Json.JsonDocument.Parse(Rel("v9.0.0", "https://evil.example/Tidy-Setup.exe", 10, exeHash)).RootElement) == null, "actualizar: rechaza descargas fuera de github.com/Jeray665/Tidy");
 Check(Updater.Parse(System.Text.Json.JsonDocument.Parse(Rel("v9.0.0", okUrl, 10, exeHash, draft: true)).RootElement) == null, "actualizar: ignora borradores");
 bool Rejects(Action a) { try { a(); return false; } catch (InvalidDataException) { return true; } }
