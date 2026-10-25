@@ -165,11 +165,15 @@ public static class Processes
 
     static readonly Dictionary<int, (TimeSpan Cpu, DateTime At)> _prev = [];
     static readonly Dictionary<string, string> _desc = new(StringComparer.OrdinalIgnoreCase);
+    // the page's timer, re-sorting and "close" can all ask at once; the CPU samples above aren't thread-safe
+    static readonly object _gate = new();
 
     public static bool IsCritical(Process p) => Critical.Contains(p.ProcessName) || p.Id == Environment.ProcessId || p.SessionId == 0 && p.ProcessName.Equals("svchost", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Grouped by program (like Task Manager's apps view). CPU % is since the previous call.</summary>
-    public static List<ProcInfo> List()
+    public static List<ProcInfo> List() { lock (_gate) return ListLocked(); }
+
+    static List<ProcInfo> ListLocked()
     {
         var now = DateTime.UtcNow;
         var cores = Environment.ProcessorCount;

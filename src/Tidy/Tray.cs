@@ -31,14 +31,35 @@ public sealed class Tray : IDisposable
         Theme.Changed += () => { var old = _icon.Icon; _icon.Icon = Theme.TrayIcon(); old?.Dispose(); };
 
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("Abrir Tidy", null, (_, _) => _app.ShowMain());
-        menu.Items.Add("Liberar memoria ahora", null, async (_, _) =>
+        menu.Items.Add(I18n.T("Abrir Tidy"), null, (_, _) => _app.ShowMain());
+        menu.Items.Add(I18n.T("Liberar memoria ahora"), null, async (_, _) =>
         {
             var freed = await Task.Run(() => Memory.PurgeStandby("menú contextual de la bandeja"));
-            _icon.ShowBalloonTip(3000, "Tidy", freed >= 0 ? $"{freed:N0} MB de memoria liberados" : "No se pudo liberar memoria", Forms.ToolTipIcon.None);
+            Balloon(null, freed >= 0 ? $"{freed:N0} MB de memoria liberados" : "No se pudo liberar memoria");
         });
+        var plans = new Forms.ToolStripMenuItem(I18n.T("Plan de energía"));
+        foreach (var (id, name) in TrayFlyout.QuickPlans)
+            plans.DropDownItems.Add(new Forms.ToolStripMenuItem(I18n.T(name), null, async (_, _) => await Task.Run(() => PowerPlan.Activate(id))) { Tag = id });
+        plans.DropDownOpening += (_, _) =>
+        {
+            var active = PowerPlan.All().FirstOrDefault(p => p.Active);
+            foreach (Forms.ToolStripMenuItem i in plans.DropDownItems)
+                i.Checked = active != null && ((Guid)i.Tag! == PowerPlan.Ultimate ? PowerPlan.IsUltimate(active) : active.Id == (Guid)i.Tag!);
+        };
+        menu.Items.Add(plans);
+        var game = new Forms.ToolStripMenuItem(I18n.T("Modo juego automático")) { CheckOnClick = true };
+        game.Click += (_, _) =>
+        {
+            Store.Settings.GameModeAuto = game.Checked;
+            Store.Save();
+            Store.Log($"Automatic game mode: {(game.Checked ? "on" : "off")} (tray menu)");
+            if (!game.Checked && GameMode.Current != null) Task.Run(GameMode.Stop);
+        };
+        menu.Items.Add(game);
+        menu.Items.Add(I18n.T("Limpieza…"), null, (_, _) => _app.ShowMain(typeof(Views.CleanerPage)));
+        menu.Opening += (_, _) => game.Checked = Store.Settings.GameModeAuto;
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add("Salir", null, (_, _) => _app.Quit());
+        menu.Items.Add(I18n.T("Salir"), null, (_, _) => _app.Quit());
         _icon.ContextMenuStrip = menu;
 
         _icon.BalloonTipClicked += (_, _) => { if (_balloonPage != null) _app.ShowMain(_balloonPage); };
@@ -55,11 +76,18 @@ public sealed class Tray : IDisposable
     }
 
     Type? _balloonPage;
+    string? _lastBalloon;
+    DateTime _lastBalloonAt;
+    int _balloonCount;
 
+    /// <summary>Windows notification. The same text again within 10 minutes says "(×N)" instead of reading as new.</summary>
     public void Balloon(Type? page, string text)
     {
         _balloonPage = page;
-        _icon.ShowBalloonTip(5000, "Tidy", text, Forms.ToolTipIcon.None);
+        text = I18n.T(text);
+        _balloonCount = text == _lastBalloon && DateTime.Now - _lastBalloonAt < TimeSpan.FromMinutes(10) ? _balloonCount + 1 : 1;
+        (_lastBalloon, _lastBalloonAt) = (text, DateTime.Now);
+        _icon.ShowBalloonTip(5000, "Tidy", _balloonCount > 1 ? $"{text} (×{_balloonCount})" : text, Forms.ToolTipIcon.None);
     }
 
     void ToggleFlyout()

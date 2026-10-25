@@ -63,6 +63,7 @@ public partial class ToolsPage : Page
         var dlg = new Microsoft.Win32.OpenFileDialog { Title = "Archivo que está en uso" };
         if (dlg.ShowDialog() != true) return;
         LockResult.Children.Clear();
+        var asked = DateTime.Now;
         var who = await Task.Run(() => Processes.WhoLocks(dlg.FileName));
         if (who.Count == 0)
         {
@@ -80,6 +81,8 @@ public partial class ToolsPage : Page
                 try
                 {
                     using var p = Process.GetProcessById(pid);
+                    // the process ids get reused: one that started after the search is another program
+                    if (p.StartTime > asked) { Ui.Toast("Ya se cerró", "Ese programa ya no está abierto.", ControlAppearance.Caution); return; }
                     if (Processes.IsCritical(p)) { Ui.Toast("Proceso de Windows", "Es un proceso del sistema: reinicia el PC para liberar el archivo.", ControlAppearance.Caution); return; }
                     if (!await Ui.Confirm($"¿Cerrar {app}?", "Se cerrará sin guardar. Si tiene trabajo pendiente, guárdalo antes desde el propio programa.", "Cerrar", danger: true)) return;
                     p.Kill();

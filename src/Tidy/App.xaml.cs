@@ -23,6 +23,7 @@ public partial class App : Application
         if (setup)
         {
             Store.Load();
+            I18n.Init(Store.Settings.Language);
             Theme.Init();
             new SetupWindow(uninstall).Show();
             return;
@@ -55,6 +56,7 @@ public partial class App : Application
         Store.Load();
         Store.MigrateFolders();
         Install.CleanOldExe();
+        Store.CleanDownloads();
         if (Install.IsInstalled) try { Install.Register(); } catch (Exception ex) { Store.Log($"Register failed: {ex.Message}"); }
         // "what's new" shows once per version; a fresh install has nothing to catch up on, and 1.0.0 didn't record it
         if (Store.Settings.LastSeenVersion == null)
@@ -62,8 +64,11 @@ public partial class App : Application
             Store.Settings.LastSeenVersion = Store.FirstRun ? Updater.Current.ToString() : "1.0.0";
             Store.Save();
         }
+        I18n.Init(Store.Settings.Language);
         Theme.Init();
         Live.Start();
+        // logging off or shutting down mid-game: give the user's power plan back, it would otherwise outlive the reboot
+        SessionEnding += (_, _) => GameMode.Stop();
         _tray = new Tray(this);
         Updater.StartAuto();
         if (e.Args.Contains("--updated") && e.Args.Contains("--tray"))
@@ -94,10 +99,10 @@ public partial class App : Application
         if (page != null) w.Navigate(page);
     }
 
-    /// <summary>After Updater.Apply: hand over to the new exe, in the tray if the window wasn't open.</summary>
-    public void RestartUpdated()
+    /// <summary>After an update or a language change: hand over to a new process, in the tray if the window wasn't open.</summary>
+    public void Restart(Type? page = null)
     {
-        var args = Tidy.MainWindow.Current == null ? "--updated --tray" : "--updated";
+        var args = Tidy.MainWindow.Current == null ? "--updated --tray" : page != null ? $"--updated --page {page.Name}" : "--updated";
         _single?.ReleaseMutex();
         _single?.Dispose();
         _single = null;
@@ -108,6 +113,7 @@ public partial class App : Application
     public void Quit()
     {
         Store.Log("Tidy closed by the user.");
+        GameMode.Stop(); // quitting mid-game puts the plan and priorities back, same as closing the game
         _tray?.Dispose();
         Shutdown();
     }

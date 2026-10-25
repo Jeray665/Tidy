@@ -111,6 +111,24 @@ Check(File.ReadAllText(bpath).Contains("Evil"), "sandbox: copia de seguridad man
 Tweaks.Revert(tw);
 Check(Tweaks.Read(testKey, "Evil") == null, "tweak: valor inyectado en la copia de seguridad BLOQUEADO");
 Check(Equals(Tweaks.Read(testKey, "Existing"), 5), "tweak: los valores legítimos se restauran igualmente");
+// values of other types come back with their exact type, not deleted or turned into text
+using (var k = Registry.CurrentUser.CreateSubKey(@"Software\TidyTest"))
+{
+    k.SetValue("Exp", @"%SystemRoot%\x", RegistryValueKind.ExpandString); k.SetValue("Q", 1L << 40, RegistryValueKind.QWord);
+    k.SetValue("Bin", new byte[] { 1, 2, 3 }, RegistryValueKind.Binary); k.SetValue("Multi", new[] { "a", "b" }, RegistryValueKind.MultiString);
+}
+var tw2 = new Tweak
+{
+    Id = "test2", Group = "t", Title = "t", Description = "", Icon = "",
+    Ops = [new(testKey, "Exp", 1, null), new(testKey, "Q", 1, null), new(testKey, "Bin", 1, null), new(testKey, "Multi", 1, null)],
+};
+Tweaks.Apply(tw2);
+Tweaks.Revert(tw2);
+using (var k = Registry.CurrentUser.OpenSubKey(@"Software\TidyTest")!)
+    Check(k.GetValueKind("Exp") == RegistryValueKind.ExpandString && Equals(Tweaks.Read(testKey, "Exp"), @"%SystemRoot%\x")
+          && k.GetValueKind("Q") == RegistryValueKind.QWord && Equals(k.GetValue("Q"), 1L << 40)
+          && ((byte[])k.GetValue("Bin")!).SequenceEqual(new byte[] { 1, 2, 3 }) && ((string[])k.GetValue("Multi")!).SequenceEqual(["a", "b"]),
+          "tweak: deshacer devuelve cada valor con su tipo exacto (expandible, qword, binario, multicadena)");
 Registry.CurrentUser.DeleteSubKeyTree(@"Software\TidyTest", false);
 try { Tweaks.Read(@"HKCR\x", "y"); Check(false, "tweak: hive no permitido rechazado"); }
 catch (ArgumentException) { Check(true, "tweak: hive no permitido rechazado"); }
@@ -289,12 +307,21 @@ Check(new[] { "https://github.com/Otro/Tidy/releases/tag/v9.0.0", "https://githu
 try
 {
     var liveRel = await Updater.FromReleasesPage();
-    var liveFile = liveRel == null ? null : await Updater.Download(liveRel);
-    Check(liveFile != null && File.Exists(liveFile) && liveFile.StartsWith(Store.DownloadsDir),
-          $"plan B (en vivo, sin API): encuentra {liveRel?.Version}, descarga {Store.FormatBytes(liveRel?.Size ?? 0)} y pasa tamaño + SHA-256 + versión");
+    if (liveRel == null) Console.WriteLine("INFO  plan B (en vivo): no hay ninguna release publicada en GitHub; se prueba al publicar");
+    else
+    {
+        var liveFile = await Updater.Download(liveRel);
+        Check(liveFile != null && File.Exists(liveFile) && liveFile.StartsWith(Store.DownloadsDir),
+              $"plan B (en vivo, sin API): encuentra {liveRel.Version}, descarga {Store.FormatBytes(liveRel.Size)} y pasa tamaño + SHA-256 + versión");
+    }
 }
 catch (Exception ex) { Check(false, $"plan B (en vivo): {ex.Message}"); }
-try { var full = await Updater.Check(); Check(full != null && full.Version >= new Version(1, 1, 0), $"buscar actualizaciones (API o plan B si está limitada): ve la {full?.Version}"); }
+try
+{
+    var full = await Updater.Check();
+    // null = no newer version (or none published yet, which must not be an error)
+    Check(full == null || full.Version > Updater.Current, $"buscar actualizaciones (API o plan B si está limitada): {(full == null ? "al día" : $"ve la {full.Version}")}, sin error aunque no haya releases");
+}
 catch (Exception ex) { Check(false, $"buscar actualizaciones: {ex.Message}"); }
 
 var swapDir = Path.Combine(sandbox, "swap"); Directory.CreateDirectory(swapDir);
@@ -303,7 +330,7 @@ var newer = Path.Combine(sandbox, "new.exe"); File.WriteAllText(newer, "new");
 using (File.Open(running, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete)) Install.ReplaceExe(newer, running);
 Check(File.ReadAllText(running) == "new" && File.ReadAllText(Path.Combine(swapDir, "Tidy.old.exe")) == "old", "actualizar: cambia el .exe aunque esté abierto y guarda el anterior");
 var log = Changelog.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\..\CHANGELOG.md"))));
-Check(log.Count >= 2 && log[0].Version.ToString() == System.Diagnostics.FileVersionInfo.GetVersionInfo(tidyExe).ProductVersion?.Split('+')[0] && log.All(v => v.Items.Count > 0), $"novedades: CHANGELOG.md tiene la versión de Tidy.exe ({log[0].Version}) con sus cambios");
+Check(log.Count >= 1 && log[0].Version.ToString() == System.Diagnostics.FileVersionInfo.GetVersionInfo(tidyExe).ProductVersion?.Split('+')[0] && log.All(v => v.Items.Count > 0), $"novedades: CHANGELOG.md tiene la versión de Tidy.exe ({log[0].Version}) con sus cambios");
 
 // ---- texts: every UI string, doc and note is valid UTF-8 without broken accents (UTF-8 read as ANSI) ----
 var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\..\"));
@@ -322,6 +349,23 @@ foreach (var f in Directory.EnumerateFiles(repoRoot, "*", SearchOption.AllDirect
     catch (DecoderFallbackException) { brokenText.Add($"{Path.GetRelativePath(repoRoot, f)} (no es UTF-8)"); }
 }
 Check(brokenText.Count == 0, $"textos: sin acentos rotos ni archivos fuera de UTF-8 {string.Join(", ", brokenText)}");
+
+Check(PowerTimeouts.Describe(0) == "nunca" && PowerTimeouts.Describe(900) == "15 min" && PowerTimeouts.Describe(5400) == "1 h 30 min", "energía: los tiempos se leen bien (nunca, 15 min, 1 h 30 min)");
+Console.WriteLine($"INFO  Energía (plan activo): {string.Join(" | ", PowerTimeouts.All.Select(t => $"{t.Id} {PowerTimeouts.Describe(PowerTimeouts.Read(t).Ac)}"))}, hibernación {(PowerTimeouts.HibernateAvailable ? "sí" : "no")}, batería {(PowerTimeouts.HasBattery ? "sí" : "no")}");
+
+Check(StartupPresets.Level("NVIDIA Telemetry Container") == 1 && StartupPresets.Level("Acme Crash Reporter") == 1
+      && StartupPresets.Level("GoXLR Utility") == null && StartupPresets.Level("Claude") == null && StartupPresets.Level("Cloudflare One Client") == null
+      && StartupPresets.Level("Steam steam.exe -silent Valve") == 2 && StartupPresets.Level("Acme Widget acme.exe") == 3
+      && StartupPresets.Level("Google Update Core") == null && StartupPresets.Level("Avast Antivirus") == null
+      && StartupPresets.Level("Realtek HD Audio Manager") == null && StartupPresets.Level("Microsoft OneDrive") == null
+      && StartupPresets.Level("AnyDesk") == null && StartupPresets.Level("Steam Client Service", launchersAllowed: false) == 3,
+      "preconfiguraciones de inicio: nunca tocan actualizadores, antivirus, audio, nube ni acceso remoto");
+var sq = new System.Text.RegularExpressions.Regex(@"\S*Update\.exe""?\s+--processStart", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+Check(StartupPresets.Level("Discord " + sq.Replace(@"""C:\Users\x\AppData\Local\Discord\Update.exe"" --processStart Discord.exe", "")) == 2,
+      "preconfiguraciones de inicio: Discord (arranca con Update.exe) cuenta como app de chat, no como actualizador");
+var presetItems = StartupPresets.Candidates(); // read-only: lists, never applies
+Console.WriteLine($"INFO  Preconfiguraciones en este PC: Ligero {presetItems.Count(i => i.Level <= 1)}, Equilibrado {presetItems.Count(i => i.Level <= 2)}, Máximo {presetItems.Count}");
+foreach (var i in presetItems) Console.WriteLine($"INFO    [{i.Level}] {i.Kind}: {i.Name} ({i.Detail})");
 
 // ---- Read-only probes of the real system ----
 SysMon.Cpu(); Thread.Sleep(500);

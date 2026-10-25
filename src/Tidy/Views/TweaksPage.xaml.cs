@@ -299,10 +299,10 @@ public partial class TweaksPage : Page
     {
         FindAppsBtn.IsEnabled = false;
         FindAppsBtn.Content = "Buscando…";
-        var found = await Task.Run(Tweaks.InstalledBloat);
+        List<(Tweaks.BloatApp App, string FullName)> found;
+        try { found = await Task.Run(Tweaks.InstalledBloat); }
+        finally { FindAppsBtn.IsEnabled = true; FindAppsBtn.Content = "Volver a buscar"; }
         Apps.ItemsSource = found.Select(f => new AppRow(f.App, f.FullName)).ToList();
-        FindAppsBtn.IsEnabled = true;
-        FindAppsBtn.Content = "Volver a buscar";
         RemoveAppsBtn.Visibility = found.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (found.Count == 0) Ui.Toast("Nada que quitar", "No hay apps preinstaladas de la lista en tu PC.");
     }

@@ -3,6 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:v="clr-namespace:Tidy.Views"
+                 xmlns:local="clr-namespace:Tidy"
                  Title="Tidy" Width="1180" Height="780" MinWidth="920" MinHeight="620"
                  WindowStartupLocation="CenterScreen"
                  ExtendsContentIntoTitleBar="True"
@@ -49,6 +50,59 @@
         </ui:NavigationView>
 
         <ui:ContentDialogHost x:Name="DialogHost" Grid.Row="0" Grid.RowSpan="2" />
-        <ui:SnackbarPresenter x:Name="Snackbar" Grid.Row="1" VerticalAlignment="Bottom" Margin="24" />
+        <!-- notifications: up to 3 stacked bottom-right, repeats grouped as ×N -->
+        <ItemsControl x:Name="ToastStack" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,20" Width="380"
+                      ItemsSource="{x:Static local:Toasts.Items}" Focusable="False">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type local:Toast}">
+                    <Border Margin="0,10,0,0" CornerRadius="10" BorderThickness="1" Padding="0"
+                            Background="{DynamicResource ApplicationBackgroundBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            MouseEnter="Toast_MouseEnter" MouseLeave="Toast_MouseLeave">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.25" Direction="270" />
+                        </Border.Effect>
+                        <Border.RenderTransform>
+                            <TranslateTransform />
+                        </Border.RenderTransform>
+                        <Border.Triggers>
+                            <EventTrigger RoutedEvent="Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.18" />
+                                        <DoubleAnimation Storyboard.TargetProperty="RenderTransform.X" From="40" To="0" Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </Border.Triggers>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="4" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border Background="{Binding Color}" CornerRadius="10,0,0,10" />
+                            <ui:SymbolIcon Grid.Column="1" Symbol="{Binding Symbol}" FontSize="22" Foreground="{Binding Color}" Margin="14,14,12,0" VerticalAlignment="Top" />
+                            <StackPanel Grid.Column="2" Margin="0,12,0,14">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" MaxWidth="230" />
+                                    <Border Style="{StaticResource Pill}" Visibility="{Binding CountVisibility}" Background="{DynamicResource AccentFillColorDefaultBrush}">
+                                        <TextBlock Text="{Binding CountText}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="12.5" Margin="0,3,0,0" MaxHeight="60" TextTrimming="CharacterEllipsis"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <ui:Button Grid.Column="3" Appearance="Transparent" Padding="6" Margin="6,8,8,0" VerticalAlignment="Top" BorderThickness="0"
+                                       Icon="{ui:SymbolIcon Dismiss16}" Click="ToastClose_Click" ToolTip="Cerrar" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
     </Grid>
 </ui:FluentWindow>

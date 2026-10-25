@@ -13,6 +13,8 @@ public partial class MainWindow : FluentWindow
         InitializeComponent();
         Current = this;
         Theme.Attach(this);
+        // the navigation frame cuts color inheritance: without this, text with no color of its own is black on the dark theme
+        Nav.Navigated += (_, e) => (e.Page as FrameworkElement)?.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, "TextFillColorPrimaryBrush");
         Loaded += (_, _) =>
         {
             Nav.Navigate(typeof(Views.HomePage));
@@ -30,6 +32,10 @@ public partial class MainWindow : FluentWindow
     }
 
     public void Navigate(Type page) => Nav.Navigate(page);
+
+    void Toast_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e) => Toasts.Pause((Toast)((FrameworkElement)sender).DataContext);
+    void Toast_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e) => Toasts.Restart((Toast)((FrameworkElement)sender).DataContext);
+    void ToastClose_Click(object sender, RoutedEventArgs e) => Toasts.Close((Toast)((FrameworkElement)sender).DataContext);
 
     void OnFound(Release r) => Dispatcher.BeginInvoke(() => ShowUpdate(r));
 

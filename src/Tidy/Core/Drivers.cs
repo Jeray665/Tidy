@@ -188,8 +188,9 @@ public static class Drivers
         Directory.CreateDirectory(dir);
         var path = Path.Combine(dir, Path.GetFileName(uri.LocalPath));
 
-        using (var resp = await Http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, ct))
+        try
         {
+            using var resp = await Http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, ct);
             resp.EnsureSuccessStatusCode();
             var total = resp.Content.Headers.ContentLength ?? 0;
             await using var src = await resp.Content.ReadAsStreamAsync(ct);
@@ -201,6 +202,12 @@ public static class Drivers
                 done += n;
                 if (total > 0) progress.Report(done * 100.0 / total);
             }
+        }
+        catch
+        {
+            // cancelled or cut off: no half-downloaded 900 MB file left behind
+            try { File.Delete(path); } catch (IOException) { }
+            throw;
         }
 
         if (!IsSignedBy(path, "NVIDIA Corporation"))

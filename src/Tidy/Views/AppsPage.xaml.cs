@@ -220,7 +220,7 @@ public partial class AppsPage : Page
     async void ProcClose_Click(object sender, RoutedEventArgs e)
     {
         var row = (ProcRow)((FrameworkElement)sender).Tag;
-        if (!await Ui.Confirm($"¿Cerrar {row.Title}?", $"Se cerrará {(row.Info.Count > 1 ? $"({row.Info.Count} procesos)" : "")} sin guardar: si tiene trabajo sin guardar, se perderá. Es como \"Finalizar tarea\" del Administrador de tareas.", "Cerrar", danger: true)) return;
+        if (!await Ui.Confirm($"¿Cerrar {row.Title}?", $"Se cierra sin guardar{(row.Info.Count > 1 ? $" (sus {row.Info.Count} procesos)" : "")}: si tiene trabajo sin guardar, se perderá. Es como \"Finalizar tarea\" del Administrador de tareas.", "Cerrar", danger: true)) return;
         var (n, err) = await Task.Run(() => Processes.Close(row.Info));
         Ui.Toast(n > 0 ? "Cerrado" : "No se pudo cerrar", n > 0 ? $"{row.Title} cerrado." : err, n > 0 ? ControlAppearance.Success : ControlAppearance.Danger);
         await RefreshProcs();

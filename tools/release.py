@@ -73,6 +73,8 @@ def main():
     body = notes(version)
     if run("git", "status", "--porcelain", capture_output=True).stdout.strip():
         sys.exit("STOP: hay cambios sin commit; súbelos antes de publicar")
+    if subprocess.run([sys.executable, str(ROOT / "tools" / "i18n.py"), "--check"], cwd=ROOT).returncode:
+        sys.exit("STOP: hay textos sin traducir al inglés; ejecuta tools/i18n.py y complétalos en src/Tidy/Assets/i18n/en.json")
 
     shutil.rmtree(OUT, ignore_errors=True)
     run("dotnet", "publish", "src/Tidy", "-c", "Release", "-p:PublishSingleFile=true", "-p:DebugType=none", "-o", str(OUT / "build"))

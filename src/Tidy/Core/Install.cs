@@ -105,7 +105,12 @@ public static class Install
         if (File.Exists(to)) File.Move(to, old, true);
         try { File.Move(tmp, to); }
         catch { if (File.Exists(old)) File.Move(old, to); throw; }
+        try { Native.IconsChanged([to, .. Shortcuts.Where(File.Exists)]); } catch { }
     }
+
+    static string[] Shortcuts =>
+        [Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), "Tidy.lnk"),
+         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Tidy.lnk")];
 
     /// <summary>Leftover from an update or reinstall: the previous exe, renamed while it was running.</summary>
     public static void CleanOldExe()
@@ -119,8 +124,7 @@ public static class Install
     {
         CloseRunning();
         Autostart.Disable();
-        foreach (var lnk in new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), "Tidy.lnk"),
-                                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Tidy.lnk") })
+        foreach (var lnk in Shortcuts)
             try { if (File.Exists(lnk) && IsOurShortcut(lnk)) File.Delete(lnk); } catch { }
         Registry.LocalMachine.DeleteSubKeyTree(UninstallKey, false);
         Store.Log($"Uninstalled (data {(deleteData ? "deleted" : "kept")})");

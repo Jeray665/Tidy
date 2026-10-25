@@ -32,7 +32,7 @@ public class SavedValue
 {
     public required string Key { get; set; }
     public required string Name { get; set; }
-    public string Kind { get; set; } = "none"; // none | dword | sz
+    public string Kind { get; set; } = "none"; // none | dword | sz | expand | qword | bin | multi
     public string? Value { get; set; }
 }
 
@@ -652,7 +652,7 @@ public static class Tweaks
             Id = "hibernate", Group = GAdvanced, Risk = Risk.Advanced, Icon = "WeatherMoon24", Title = "Desactivar hibernación",
             Description = "Borra hiberfil.sys y recupera varios GB en C:. También desactiva el \"inicio rápido\" (el arranque tarda unos segundos más).",
             Check = () => Equals(Read(@"HKLM\SYSTEM\CurrentControlSet\Control\Power", "HibernateEnabled"), 0),
-            CustomApply = () => Store.Run("powercfg.exe", "/hibernate off"),
+            CustomApply = () => { if (Store.Run("powercfg.exe", "/hibernate off").Exit != 0) throw new InvalidOperationException("powercfg no pudo desactivarla"); },
             CustomRevert = () => Store.Run("powercfg.exe", "/hibernate on"),
         },
     ];
@@ -817,11 +817,11 @@ public static class Tweaks
         return k?.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
     }
 
-    static void Write(string key, string name, object value)
+    static void Write(string key, string name, object value, RegistryValueKind? kind = null)
     {
         using var hive = Hive(key, out var sub);
         using var k = hive.CreateSubKey(sub, true);
-        k.SetValue(name, value, value is int ? RegistryValueKind.DWord : RegistryValueKind.String);
+        k.SetValue(name, value, kind ?? (value is int ? RegistryValueKind.DWord : RegistryValueKind.String));
     }
 
     static void Delete(string key, string name)
@@ -831,12 +831,26 @@ public static class Tweaks
         k?.DeleteValue(name, false);
     }
 
-    static SavedValue Capture(RegOp op) => Read(op.Key, op.Name) switch
+    /// <summary>The original value with its exact type, so undo writes back precisely what was there.</summary>
+    static SavedValue Capture(RegOp op)
     {
-        int i => new SavedValue { Key = op.Key, Name = op.Name, Kind = "dword", Value = i.ToString() },
-        string s => new SavedValue { Key = op.Key, Name = op.Name, Kind = "sz", Value = s },
-        _ => new SavedValue { Key = op.Key, Name = op.Name },
-    };
+        var saved = new SavedValue { Key = op.Key, Name = op.Name };
+        using var hive = Hive(op.Key, out var sub);
+        using var k = hive.OpenSubKey(sub);
+        if (k?.GetValue(op.Name, null, RegistryValueOptions.DoNotExpandEnvironmentNames) is not { } v) return saved;
+        (saved.Kind, saved.Value) = (k.GetValueKind(op.Name), v) switch
+        {
+            (RegistryValueKind.ExpandString, string s) => ("expand", s),
+            (_, string s) => ("sz", s),
+            (_, int i) => ("dword", i.ToString()),
+            (_, long l) => ("qword", l.ToString()),
+            (_, string[] m) => ("multi", string.Join('\0', m)),
+            (_, byte[] b) => ("bin", Convert.ToBase64String(b)),
+            // never change a value that couldn't be put back
+            _ => throw new InvalidOperationException($"tipo de valor desconocido en {op.Key}\\{op.Name}"),
+        };
+        return saved;
+    }
 
     static void Restore(SavedValue s)
     {
@@ -844,6 +858,10 @@ public static class Tweaks
         {
             case "dword": Write(s.Key, s.Name, int.Parse(s.Value!)); break;
             case "sz": Write(s.Key, s.Name, s.Value!); break;
+            case "expand": Write(s.Key, s.Name, s.Value!, RegistryValueKind.ExpandString); break;
+            case "qword": Write(s.Key, s.Name, long.Parse(s.Value!), RegistryValueKind.QWord); break;
+            case "multi": Write(s.Key, s.Name, s.Value!.Split('\0'), RegistryValueKind.MultiString); break;
+            case "bin": Write(s.Key, s.Name, Convert.FromBase64String(s.Value!), RegistryValueKind.Binary); break;
             default: Delete(s.Key, s.Name); break;
         }
     }
@@ -899,6 +917,7 @@ public static class Tweaks
         if (!SafeName.IsMatch(fullName) || !fullName.StartsWith(app.Package + "_")) return false;
         var (code, output) = Store.Run(PowerShell, $"-NoProfile -NonInteractive -Command \"Remove-AppxPackage -Package '{fullName}'\"");
         Store.Log($"Bloatware: uninstall {fullName} -> {(code == 0 ? "OK" : output.Trim())}");
+        if (code == 0) History.Add(HistoryKind.App, $"App preinstalada quitada: {app.Name}", "Se puede reinstalar gratis desde Microsoft Store");
         return code == 0;
     }
 }

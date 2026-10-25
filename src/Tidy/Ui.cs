@@ -54,18 +54,8 @@ public static class Ui
 
     public static void Toast(string title, string message, ControlAppearance appearance = ControlAppearance.Success)
     {
-        var w = MainWindow.Current;
-        if (w == null) return;
-        new Snackbar(w.Snackbar)
-        {
-            Title = title, Content = message, Appearance = appearance, Timeout = TimeSpan.FromSeconds(6),
-            Icon = new SymbolIcon(appearance switch
-            {
-                ControlAppearance.Danger => SymbolRegular.ErrorCircle24,
-                ControlAppearance.Caution => SymbolRegular.Warning24,
-                _ => SymbolRegular.CheckmarkCircle24,
-            }),
-        }.Show();
+        if (MainWindow.Current == null) return;
+        Toasts.Show(title, message, appearance);
     }
 
     public static TextBlock Text(string text, string? style = null, double bottom = 8)

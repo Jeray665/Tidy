@@ -30,6 +30,19 @@
                 <ComboBoxItem Content="Oscuro" Tag="dark" />
             </ComboBox>
         </ui:CardControl>
+        <ui:CardControl Icon="{ui:SymbolIcon LocalLanguage24}" Margin="0,0,0,6">
+            <ui:CardControl.Header>
+                <StackPanel>
+                    <TextBlock Text="Idioma (Language)" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Muted}" Text="Español o inglés. Se aplica al reiniciar Tidy." />
+                </StackPanel>
+            </ui:CardControl.Header>
+            <ComboBox x:Name="LanguageBox" Width="170" SelectionChanged="Language_Changed">
+                <ComboBoxItem Content="Como Windows" Tag="" />
+                <ComboBoxItem Content="Español" Tag="es" />
+                <ComboBoxItem Content="English" Tag="en" />
+            </ComboBox>
+        </ui:CardControl>
         <ui:CardControl Icon="{ui:SymbolIcon Flash24}" Margin="0,0,0,6">
             <ui:CardControl.Header>
                 <StackPanel>
@@ -60,16 +73,8 @@
                     <ui:SymbolIcon Symbol="ShieldCheckmark24" FontSize="22" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
                     <TextBlock Text="  Cómo te protege Tidy" FontWeight="SemiBold" VerticalAlignment="Center" />
                 </StackPanel>
-                <TextBlock Style="{StaticResource Muted}" FontSize="13" LineHeight="22">
-                    • Nada se borra sin enseñarte antes la lista exacta de archivos y sin tu confirmación.<LineBreak />
-                    • Solo limpia carpetas de una lista blanca, no entra nunca en enlaces/junctions y no toca temporales de menos de 24 h.<LineBreak />
-                    • Cada optimización guarda el valor original antes de cambiar nada y se deshace con su interruptor.<LineBreak />
-                    • Punto de restauración de Windows antes de optimizaciones, drivers y desinstalar apps.<LineBreak />
-                    • Drivers solo de Windows Update o nvidia.com; el instalador de NVIDIA se rechaza si su firma digital no es válida.<LineBreak />
-                    • La RAM se libera vaciando solo la caché en espera: no cierra programas ni pierde datos.<LineBreak />
-                    • Sin telemetría: solo se conecta cuando tú lo pides (Windows Update y nvidia.com para drivers, winget para instalar o actualizar apps, la lista de bloqueo de anuncios) y una vez al día a GitHub para ver si hay versión nueva (se puede desactivar).<LineBreak />
-                    • Todo lo que hace queda apuntado en un registro que puedes revisar.
-                </TextBlock>
+                <TextBlock Style="{StaticResource Muted}" FontSize="13" LineHeight="22" TextWrapping="Wrap"
+                           Text="• Nada se borra sin enseñarte antes la lista exacta de archivos y sin tu confirmación.&#10;• Solo limpia carpetas de una lista blanca, no entra nunca en enlaces/junctions y no toca temporales de menos de 24 h.&#10;• Cada optimización guarda el valor original antes de cambiar nada y se deshace con su interruptor.&#10;• Punto de restauración de Windows antes de optimizaciones, drivers y desinstalar apps.&#10;• Drivers solo de Windows Update o nvidia.com; el instalador de NVIDIA se rechaza si su firma digital no es válida.&#10;• La RAM se libera vaciando solo la caché en espera: no cierra programas ni pierde datos.&#10;• Sin telemetría: solo se conecta cuando tú lo pides (Windows Update y nvidia.com para drivers, winget para instalar o actualizar apps, la lista de bloqueo de anuncios) y una vez al día a GitHub para ver si hay versión nueva (se puede desactivar).&#10;• Todo lo que hace queda apuntado en un registro que puedes revisar." />
                 <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                     <ui:Button Content="Ver registro de actividad" Icon="{ui:SymbolIcon History24}" Click="OpenLog_Click" />
                     <ui:Button Content="Abrir carpeta de datos" Icon="{ui:SymbolIcon Folder24}" Margin="8,0,0,0" Click="OpenFolder_Click" />

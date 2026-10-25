@@ -228,24 +228,49 @@ public static class Repairs
             case "dism": OpenConsole("DISM /Online /Cleanup-Image /RestoreHealth"); return (true, "");
             case "chkdsk": OpenConsole("chkdsk C: /scan"); return (true, "");
             case "policies":
-                foreach (var (hive, key, name) in new[]
-                {
-                    (Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Policies\System", "DisableRegistryTools"),
-                    (Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Policies\System", "DisableTaskMgr"),
-                    (Registry.CurrentUser, @"Software\Policies\Microsoft\Windows\System", "DisableCMD"),
-                    (Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System", "DisableRegistryTools"),
-                    (Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System", "DisableTaskMgr"),
-                    (Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\System", "DisableCMD"),
-                })
+                // each removed value goes into the history entry, so "undo" can put back exactly that
+                var removed = new List<string>();
+                foreach (var (hive, key, name) in Policies)
                 {
                     using var k = hive.OpenSubKey(key, true);
-                    if (k?.GetValue(name) is { } v) { Store.Log($"  removed {hive.Name}\\{key}\\{name} = {v}"); k.DeleteValue(name, false); }
+                    if (k?.GetValue(name) is not int v) continue;
+                    k.DeleteValue(name, false);
+                    removed.Add($"{hive.Name}|{key}|{name}|{v}");
+                    Store.Log($"  removed {hive.Name}\\{key}\\{name} = {v}");
                 }
+                if (removed.Count > 0)
+                    History.Add(HistoryKind.Tweak, "Herramientas desbloqueadas", string.Join(", ", removed.Select(r => r.Split('|')[2]).Distinct()), "policies:" + string.Join(";", removed));
                 return (true, "");
             case "advboot": return Result(Store.Run("shutdown.exe", "/r /o /t 5"));
         }
         return (false, "Desconocido");
         static (bool, string) Result((int Exit, string Output) r) => (r.Exit == 0, r.Output.Trim());
+    }
+
+    static readonly (RegistryKey Hive, string Key, string Name)[] Policies =
+    [
+        (Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Policies\System", "DisableRegistryTools"),
+        (Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Policies\System", "DisableTaskMgr"),
+        (Registry.CurrentUser, @"Software\Policies\Microsoft\Windows\System", "DisableCMD"),
+        (Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System", "DisableRegistryTools"),
+        (Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System", "DisableTaskMgr"),
+        (Registry.LocalMachine, @"SOFTWARE\Policies\Microsoft\Windows\System", "DisableCMD"),
+    ];
+
+    /// <summary>Undo of "policies": "HKEY_CURRENT_USER|key|name|value;…". Only the six known values are ever written back.</summary>
+    public static bool RestorePolicies(string arg)
+    {
+        var all = true;
+        foreach (var part in arg.Split(';'))
+        {
+            var p = part.Split('|');
+            var known = Policies.FirstOrDefault(x => p.Length == 4 && x.Hive.Name == p[0] && x.Key == p[1] && x.Name == p[2]);
+            if (known.Hive == null || !int.TryParse(p[3], out var v)) { Store.Log($"Policies undo: ignored {part}"); all = false; continue; }
+            using var k = known.Hive.CreateSubKey(known.Key, true);
+            k.SetValue(known.Name, v, RegistryValueKind.DWord);
+            Store.Log($"  restored {p[0]}\\{p[1]}\\{p[2]} = {v}");
+        }
+        return all;
     }
 
     /// <summary>Kills the shell; Winlogon restarts it un-elevated by itself (starting it from here would run it as admin).</summary>

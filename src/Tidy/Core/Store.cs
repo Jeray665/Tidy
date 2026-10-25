@@ -30,6 +30,11 @@ public class Settings
     public int CleanReminderDays { get; set; } = 30;
     /// <summary>"system" (follow Windows), "light" or "dark".</summary>
     public string Theme { get; set; } = "system";
+    /// <summary>"es", "en" or "" for the same as Windows.</summary>
+    public string Language { get; set; } = "";
+    /// <summary>Screen off / sleep / hibernate in seconds (0 = never), re-applied when Tidy changes the power plan.
+    /// Only the ones the user chose in Tidy are here.</summary>
+    public Dictionary<string, int> PowerTimeouts { get; set; } = [];
 
     public bool AutoUpdateCheck { get; set; } = true;
     public DateTime? LastUpdateCheck { get; set; }
@@ -74,6 +79,18 @@ public static class Store
         MoveDir(Path.Combine(root, "datos"), SecureDir);
         MoveDir(Path.Combine(root, "descargas"), DownloadsDir);
         if (MoveDir(Path.Combine(SecureDir, "cuarentena"), Uninstaller.QuarantineRoot)) Uninstaller.RebaseQuarantines();
+    }
+
+    /// <summary>Installers Tidy downloaded itself (NVIDIA ~900 MB each, its own updates) are only needed for a few days.</summary>
+    public static void CleanDownloads()
+    {
+        try
+        {
+            if (!Directory.Exists(DownloadsDir)) return;
+            foreach (var f in new DirectoryInfo(DownloadsDir).GetFiles().Where(f => f.LastWriteTime < DateTime.Now.AddDays(-7)))
+                try { f.Delete(); Log($"Old download removed: {f.Name}"); } catch (IOException) { }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
     }
 
     static bool MoveDir(string from, string to)

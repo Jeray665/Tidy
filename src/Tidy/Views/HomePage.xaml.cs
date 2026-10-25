@@ -125,9 +125,14 @@ public partial class HomePage : Page
     {
         using var k = Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0");
         var cpu = (k?.GetValue("ProcessorNameString") as string)?.Replace("(R)", "").Replace("(TM)", "").Replace(" CPU", "").Trim();
-        using var s = new ManagementObjectSearcher("SELECT Name FROM Win32_VideoController");
-        var gpu = s.Get().Cast<ManagementObject>().Select(o => o["Name"] as string).FirstOrDefault(n => n != null && !n.Contains("Virtual"));
-        return $"{cpu} · {gpu?.Replace("NVIDIA ", "")} · {Math.Round(SysMon.Ram().TotalGb)} GB RAM";
+        string? gpu = null;
+        try
+        {
+            using var s = new ManagementObjectSearcher("SELECT Name FROM Win32_VideoController");
+            gpu = s.Get().Cast<ManagementObject>().Select(o => o["Name"] as string).FirstOrDefault(n => n != null && !n.Contains("Virtual"));
+        }
+        catch (ManagementException e) { Store.Log($"Home: GPU name unavailable: {e.Message}"); } // a broken WMI must not break the home page
+        return string.Join(" · ", new[] { cpu, gpu?.Replace("NVIDIA ", ""), $"{Math.Round(SysMon.Ram().TotalGb)} GB RAM" }.Where(x => !string.IsNullOrEmpty(x)));
     }
 
     async void Optimize_Click(object sender, RoutedEventArgs e)
@@ -154,7 +159,8 @@ public partial class HomePage : Page
         if (tag == "ram")
         {
             var freed = await Task.Run(() => Memory.PurgeStandby("recomendación de Inicio"));
-            Ui.Toast("Memoria liberada", $"{freed:N0} MB devueltos a Windows.");
+            if (freed >= 0) Ui.Toast("Memoria liberada", $"{freed:N0} MB devueltos a Windows.");
+            else Ui.Toast("No se pudo liberar RAM", "Faltan permisos.", Wpf.Ui.Controls.ControlAppearance.Caution);
             await Analyze();
             return;
         }

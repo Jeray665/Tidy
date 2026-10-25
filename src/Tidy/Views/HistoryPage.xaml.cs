@@ -145,7 +145,9 @@ public partial class HistoryPage : Page
         foreach (var p in plans.Where(p => !p.Active)) set.Add($"power:{p.Id}");
         set.Add("recycle");
         set.Add("startup");
-        if (Winget.Available) foreach (var e in History.All().Where(e => e.Undo?.StartsWith("winget:") == true)) set.Add(e.Undo!);
+        // these carry everything needed to undo inside the entry itself
+        string[] selfContained = ["startup:", "powertime:", "policies:", .. Winget.Available ? ["winget:"] : Array.Empty<string>()];
+        foreach (var e in History.All().Where(e => e.Undo != null && selfContained.Any(e.Undo.StartsWith))) set.Add(e.Undo!);
         return set;
     }
 
@@ -168,7 +170,7 @@ public partial class HistoryPage : Page
                 day = e.When.Date;
                 Entries.Children.Add(new TextBlock
                 {
-                    Text = day == DateTime.Today ? "Hoy" : day == DateTime.Today.AddDays(-1) ? "Ayer" : $"{day:dddd d 'de' MMMM yyyy}",
+                    Text = day == DateTime.Today ? "Hoy" : day == DateTime.Today.AddDays(-1) ? "Ayer" : $"{day:D}",
                     FontWeight = FontWeights.SemiBold, Margin = new Thickness(2, 12, 0, 6), Foreground = Ui.Res("TextFillColorSecondaryBrush"),
                 });
             }
@@ -204,8 +206,9 @@ public partial class HistoryPage : Page
     static string UndoLabel(string undo) => undo.Split(':')[0] switch
     {
         "tweak" => "Deshacer", "service" or "task" or "dns" => "Volver a como estaba", "hosts" => "Restaurar versión anterior",
-        "quarantine" => "Restaurar restos", "winget" => "Desinstalar", "recycle" => "Abrir Papelera", "power" => "Volver al plan anterior",
-        "startup" => "Ir a Inicio de Windows", _ => "Deshacer",
+        "quarantine" => "Restaurar restos", "winget" => "Desinstalar", "recycle" => "Abrir Papelera", "power" => "Volver al plan anterior", "powertime" => "Volver al tiempo anterior",
+        "policies" => "Volver a bloquearlas",
+        "startup" => undo.Contains(':') ? "Volver a como estaba" : "Ir a Inicio de Windows", _ => "Deshacer",
     };
 
     async Task Undo(HistoryEntry e)
@@ -216,7 +219,7 @@ public partial class HistoryPage : Page
             switch (kind)
             {
                 case "recycle": Ui.OpenFolder("shell:RecycleBinFolder"); return;
-                case "startup": MainWindow.Current?.Navigate(typeof(StartupPage)); return;
+                case "startup" when arg == "": MainWindow.Current?.Navigate(typeof(StartupPage)); return;
             }
             if (!await Ui.Confirm($"¿{UndoLabel(e.Undo)}?", $"{e.Title}\n\n" + kind switch
                 {
@@ -228,6 +231,9 @@ public partial class HistoryPage : Page
                     "quarantine" => "Los restos vuelven a su sitio original.",
                     "winget" => "Se desinstala el programa con su desinstalador oficial.",
                     "power" => "Se vuelve a activar el plan de energía anterior.",
+                    "powertime" => "Se vuelve a poner el tiempo que había antes en el plan activo.",
+                    "startup" => "La app vuelve a arrancar con Windows (o a no hacerlo) como antes de este cambio.",
+                    "policies" => "Se vuelven a poner las directivas que bloqueaban estas herramientas, tal como estaban.",
                     _ => "",
                 }, UndoLabel(e.Undo))) return;
             var ok = await Task.Run(() => kind switch
@@ -239,7 +245,11 @@ public partial class HistoryPage : Page
                 "hosts" => Network.HostsBackups().FirstOrDefault(h => h.Name == arg) is { } h && Do(() => Network.WriteHosts(File.ReadAllText(h.FullName))),
                 "quarantine" => Uninstaller.Quarantines().FirstOrDefault(q => q.Id == arg) is { } q && Uninstaller.Restore(q).Failed == 0,
                 "winget" => Winget.Uninstall(arg).Ok,
+                "startup" => StartupApps.Restore(arg),
+                "policies" => Repairs.RestorePolicies(arg),
                 "power" => Guid.TryParse(arg, out var g) && PowerPlan.Activate(g),
+                "powertime" => arg.Split(':') is [var id, var ac, var dc] && PowerTimeouts.All.FirstOrDefault(t => t.Id == id) is { } pt
+                    && uint.TryParse(ac, out var a) && uint.TryParse(dc, out var d) && Do(() => { Store.Settings.PowerTimeouts.Remove(id); Store.Save(); }) && PowerTimeouts.Write(pt, a, d),
                 _ => false,
             });
             Ui.Toast(ok ? "Deshecho" : "No se pudo deshacer del todo", ok ? e.Title : "Revisa el registro de actividad en Ajustes.", ok ? ControlAppearance.Success : ControlAppearance.Caution);

@@ -16,7 +16,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Grid Width="88" Height="88">
-                    <ui:ProgressRing x:Name="Ring" Width="88" Height="88" IsIndeterminate="False" Progress="0" />
+                    <ui:ProgressRing x:Name="Ring" Width="88" Height="88" IsIndeterminate="False" Progress="0" Visibility="Hidden" />
                     <ui:SymbolIcon x:Name="StatusIcon" Symbol="ArrowSync24" FontSize="34" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
                 </Grid>
                 <StackPanel Grid.Column="1" Margin="24,0" VerticalAlignment="Center">

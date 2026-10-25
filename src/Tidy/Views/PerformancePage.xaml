@@ -65,6 +65,11 @@
         <UniformGrid x:Name="Plans" Columns="4" />
         <TextBlock x:Name="OtherPlansNote" Style="{StaticResource Muted}" Margin="2,8,0,0" Visibility="Collapsed" />
 
+        <TextBlock Text="Pantalla y suspensión" Style="{StaticResource Section}" />
+        <TextBlock Style="{StaticResource Muted}" FontSize="13" Margin="2,-4,0,10"
+                   Text="Cuánto espera el PC sin usarse antes de apagar la pantalla o suspenderse. Tu elección se mantiene aunque Tidy cambie de plan (perfiles, modo juego). Cada cambio se puede deshacer en Historial." />
+        <StackPanel x:Name="Timeouts" />
+
         <TextBlock Text="Modo juego automático" Style="{StaticResource Section}" />
         <Border Style="{StaticResource Tile}">
             <StackPanel>

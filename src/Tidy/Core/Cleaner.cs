@@ -136,16 +136,21 @@ public static class Cleaner
         var cutoff = DateTime.Now - c.MinAge;
         foreach (var root in r.Roots)
         {
-            if (IsReparse(root)) continue;
-            foreach (var f in new DirectoryInfo(root).EnumerateFiles("*", Walk))
+            try
             {
-                try
+                if (IsReparse(root)) continue;
+                foreach (var f in new DirectoryInfo(root).EnumerateFiles("*", Walk))
                 {
-                    if (Newest(f) > cutoff) continue;
-                    r.Items.Add(new CleanItem { Path = f.FullName, Display = f.FullName, Size = f.Length });
+                    try
+                    {
+                        if (Newest(f) > cutoff) continue;
+                        r.Items.Add(new CleanItem { Path = f.FullName, Display = f.FullName, Size = f.Length });
+                    }
+                    catch (IOException) { }
                 }
-                catch (IOException) { }
             }
+            // a root that vanished or can't be read mid-scan is just skipped
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Store.Log($"Cleanup scan: skipped {root}: {e.Message}"); }
         }
         return r;
     }
@@ -153,7 +158,7 @@ public static class Cleaner
     static void ScanRecycle(ScanResult r)
     {
         foreach (var root in r.Roots)
-        foreach (var info in Directory.EnumerateFiles(root, "$I*"))
+        foreach (var info in SafeFiles(root, "$I*"))
         {
             try
             {
@@ -165,9 +170,15 @@ public static class Cleaner
                     Display = $"{original}  (en la papelera)",
                 });
             }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            // a damaged $I file is left alone (and out of the list) instead of breaking the scan
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException) { }
         }
+    }
+
+    static IEnumerable<string> SafeFiles(string dir, string pattern)
+    {
+        try { return Directory.GetFiles(dir, pattern); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return []; }
     }
 
     /// <summary>$I file: v1 = 24-byte header + fixed 520-byte path; v2 = 24-byte header + int32 length + UTF-16 path.</summary>
@@ -207,7 +218,7 @@ public static class Cleaner
         var listFile = Path.Combine(logDir, $"cleanup-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
         File.WriteAllText(listFile, list.ToString(), Encoding.UTF8);
         Store.Log($"Cleanup: {deleted} items deleted ({Store.FormatBytes(bytes)}), {skipped} skipped (in use or protected). List: {listFile}");
-        if (deleted > 0) History.Add(HistoryKind.Clean, $"Limpieza: {Store.FormatBytes(bytes)} liberados", $"{deleted} archivos temporales (no se pueden recuperar). Lista: {Path.GetFileName(listFile)}");
+        if (deleted > 0) History.Add(HistoryKind.Clean, $"Limpieza: {Store.FormatBytes(bytes)} liberados", $"{deleted} archivos (no se pueden recuperar). Lista: {Path.GetFileName(listFile)}");
         return new CleanReport(deleted, bytes, skipped, listFile);
     }
 

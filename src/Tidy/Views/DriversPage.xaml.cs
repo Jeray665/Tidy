@@ -41,6 +41,7 @@ public partial class DriversPage : Page
         _busy = true;
         ScanBtn.IsEnabled = UpdateAllBtn.IsEnabled = false;
         Ring.IsIndeterminate = true;
+        Ring.Visibility = Visibility.Visible; // hidden until the first scan: at 0 % it draws a stray dot
         StatusTitle.Text = "Escaneando…";
         var notes = new List<string>();
         try
@@ -91,6 +92,13 @@ public partial class DriversPage : Page
             StatusSub.Text = $"{inv.Count} dispositivos revisados · {DateTime.Now:HH:mm}" + (notes.Count > 0 ? $" · {string.Join(" · ", notes)}" : "");
             ScanBtn.Content = "Volver a escanear";
             ScanBtn.Appearance = ControlAppearance.Secondary;
+        }
+        catch (Exception ex)
+        {
+            Store.Log($"Drivers: scan failed: {ex}");
+            StatusTitle.Text = "No se pudo escanear";
+            if (Ring.Progress == 0) Ring.Visibility = Visibility.Hidden;
+            StatusSub.Text = ex.Message;
         }
         finally
         {

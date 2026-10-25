@@ -38,7 +38,7 @@ public static class Hardware
         var mods = All("SELECT Capacity, ConfiguredClockSpeed, Speed, Manufacturer, PartNumber, DeviceLocator FROM Win32_PhysicalMemory");
         var totalGb = mods.Sum(m => Convert.ToDouble(m["Capacity"])) / (1L << 30);
         var speed = mods.Select(m => Convert.ToInt32(m["ConfiguredClockSpeed"] ?? m["Speed"] ?? 0)).DefaultIfEmpty(0).Max();
-        s.Add(new("Memoria RAM", "Board24", $"{totalGb:0} GB a {speed} MT/s",
+        s.Add(new("Memoria RAM", "Board24", $"{totalGb:0} GB · {speed} MT/s",
             mods.Select(m => new HwItem(Str(m, "DeviceLocator"),
                 $"{Convert.ToDouble(m["Capacity"]) / (1L << 30):0} GB · {Str(m, "Manufacturer")} {Str(m, "PartNumber").Trim()}")).ToList()));
 
@@ -99,7 +99,7 @@ public static class Hardware
             var name = EnumDisplayDevices(ad.DeviceName, 0, ref mon, 1) ? MonitorName(mon, names) : null;
             var primary = (ad.StateFlags & 4) != 0;
             list.Add(new(name ?? $"Pantalla {list.Count + 1}",
-                $"{dm.dmPelsWidth}×{dm.dmPelsHeight} a {dm.dmDisplayFrequency} Hz{(primary ? " · principal" : "")}"));
+                $"{dm.dmPelsWidth}×{dm.dmPelsHeight} · {dm.dmDisplayFrequency} Hz{(primary ? " · " + "principal" : "")}"));
         }
         return list.OrderByDescending(d => d.Value.EndsWith("principal")).ToList();
     }

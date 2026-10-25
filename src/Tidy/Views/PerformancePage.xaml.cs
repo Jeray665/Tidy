@@ -29,7 +29,7 @@ public partial class PerformancePage : Page
         Threshold.Value = Store.Settings.FreeThresholdMb;
         ThresholdText.Text = $"{Store.Settings.FreeThresholdMb / 1024.0:0.#} GB";
         _loading = false;
-        Loaded += async (_, _) => { ShowPlans(); ShowLists(); await ShowGameMode(); };
+        Loaded += async (_, _) => { ShowPlans(); ShowTimeouts(); ShowLists(); await ShowGameMode(); };
         GameMode.Changed += OnGameChanged;
         Unloaded += (_, _) => GameMode.Changed -= OnGameChanged;
     }
@@ -178,11 +178,49 @@ public partial class PerformancePage : Page
                 if (ok) Ui.Toast("Plan de energía cambiado", $"Ahora usas \"{info.Name}\".");
                 else Ui.Toast("No se pudo cambiar el plan", "Revisa el registro en Ajustes.", ControlAppearance.Danger);
                 ShowPlans();
+                ShowTimeouts();
             };
             Plans.Children.Add(card);
         }
         var custom = active != null && !Standard.Any(s => s.Id == active.Id) && !PowerPlan.IsUltimate(active);
         OtherPlansNote.Visibility = custom ? Visibility.Visible : Visibility.Collapsed;
         OtherPlansNote.Text = custom ? $"Ahora mismo usas un plan personalizado: \"{active!.Name}\". Elegir uno de arriba no lo borra." : "";
+    }
+
+    // ---------- screen off / sleep / hibernate ----------
+    static readonly uint[] Choices = [0, 60, 300, 600, 900, 1200, 1800, 2700, 3600, 7200, 10800, 18000];
+
+    void ShowTimeouts()
+    {
+        Timeouts.Children.Clear();
+        foreach (var t in PowerTimeouts.All)
+        {
+            if (t.Id == "hibernate" && !PowerTimeouts.HibernateAvailable) continue;
+            var (ac, dc) = PowerTimeouts.Read(t);
+            var box = new ComboBox { Width = 170, VerticalAlignment = VerticalAlignment.Center };
+            foreach (var c in Choices.Append(ac).Distinct().Order())
+                box.Items.Add(new ComboBoxItem { Content = c == 0 ? "Nunca" : PowerTimeouts.Describe(c), Tag = c, IsSelected = c == ac });
+            var header = new StackPanel();
+            header.Children.Add(new TextBlock { Text = t.Label, FontWeight = FontWeights.SemiBold });
+            header.Children.Add(Ui.Text(ac != dc && PowerTimeouts.HasBattery ? $"{t.Description} Con batería ahora: {PowerTimeouts.Describe(dc)}; al cambiarlo se usa lo mismo en los dos." : t.Description, "Muted", 0));
+            box.SelectionChanged += async (_, _) =>
+            {
+                if (box.SelectedItem is not ComboBoxItem { Tag: uint secs }) return;
+                var ok = await Task.Run(() => PowerTimeouts.Write(t, secs, secs));
+                if (ok)
+                {
+                    Store.Settings.PowerTimeouts[t.Id] = (int)secs;
+                    Store.Save();
+                    Ui.Toast(t.Label, secs == 0 ? "Nunca, en el plan actual y en los que active Tidy." : $"A los {PowerTimeouts.Describe(secs)} sin usar el PC.");
+                }
+                else Ui.Toast("No se pudo cambiar", "Windows no ha aceptado el valor. Revisa el registro de actividad.", ControlAppearance.Danger);
+                ShowTimeouts();
+            };
+            Timeouts.Children.Add(new CardControl
+            {
+                Header = header, Content = box, Margin = new Thickness(0, 0, 0, 6),
+                Icon = new SymbolIcon(t.Id switch { "display" => SymbolRegular.Desktop24, "sleep" => SymbolRegular.WeatherMoon24, _ => SymbolRegular.Storage24 }),
+            });
+        }
     }
 }

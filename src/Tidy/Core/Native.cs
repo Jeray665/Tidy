@@ -75,6 +75,24 @@ static class Native
     [DllImport("powrprof.dll")]
     public static extern uint PowerSetActiveScheme(IntPtr root, ref Guid scheme);
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SYSTEM_POWER_STATUS { public byte ACLineStatus, BatteryFlag, BatteryLifePercent, SystemStatusFlag; public int BatteryLifeTime, BatteryFullLifeTime; }
+
+    [DllImport("kernel32.dll")]
+    public static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS status);
+
+    [DllImport("powrprof.dll")]
+    public static extern uint PowerReadACValueIndex(IntPtr root, ref Guid scheme, ref Guid subGroup, ref Guid setting, out uint value);
+
+    [DllImport("powrprof.dll")]
+    public static extern uint PowerReadDCValueIndex(IntPtr root, ref Guid scheme, ref Guid subGroup, ref Guid setting, out uint value);
+
+    [DllImport("powrprof.dll")]
+    public static extern uint PowerWriteACValueIndex(IntPtr root, ref Guid scheme, ref Guid subGroup, ref Guid setting, uint value);
+
+    [DllImport("powrprof.dll")]
+    public static extern uint PowerWriteDCValueIndex(IntPtr root, ref Guid scheme, ref Guid subGroup, ref Guid setting, uint value);
+
     [DllImport("kernel32.dll")]
     public static extern IntPtr LocalFree(IntPtr p);
 
@@ -141,6 +159,17 @@ static class Native
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     public static extern int SHEmptyRecycleBin(IntPtr hwnd, string? root, uint flags);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    static extern void SHChangeNotify(int eventId, uint flags, string? item1, IntPtr item2);
+
+    /// <summary>Windows caches icons by file path, so an exe swapped in place keeps showing its old icon (Start, desktop)
+    /// until told that these files changed.</summary>
+    public static void IconsChanged(params string[] paths)
+    {
+        foreach (var p in paths) SHChangeNotify(0x2000 /* SHCNE_UPDATEITEM */, 0x5 /* SHCNF_PATHW */, p, IntPtr.Zero);
+        SHChangeNotify(0x08000000 /* SHCNE_ASSOCCHANGED */, 0, null, IntPtr.Zero);
+    }
 
     // ---------- Recycle Bin (reversible delete) ----------
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

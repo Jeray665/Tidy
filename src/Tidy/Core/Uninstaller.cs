@@ -497,14 +497,15 @@ public static class Uninstaller
                         break;
                     case LeftoverKind.Service:
                         if (Services.IsProtected(l.Target, "")) continue;
-                        Store.Run(RegExe, $"export \"HKLM\\SYSTEM\\CurrentControlSet\\Services\\{l.Target}\" \"{stored}.reg\" /y /reg:64");
+                        // no backup, no delete
+                        if (Store.Run(RegExe, $"export \"HKLM\\SYSTEM\\CurrentControlSet\\Services\\{l.Target}\" \"{stored}.reg\" /y /reg:64").Exit != 0) throw new IOException("no se pudo exportar");
                         Store.Run("sc.exe", $"stop \"{l.Target}\"");
                         if (Store.Run("sc.exe", $"delete \"{l.Target}\"").Exit != 0) throw new IOException("sc delete falló");
                         q.Items.Add(new(l.Kind, l.Target, stored + ".reg"));
                         break;
                     case LeftoverKind.Task:
                         if (!ScheduledTasks.CanChange(l.Target)) continue;
-                        var (_, xml) = Store.Run("schtasks.exe", $"/query /tn \"{l.Target}\" /xml");
+                        if (ScheduledTasks.Xml(l.Target) is not { } xml || !xml.Contains("<Task")) throw new IOException("no se pudo leer la tarea");
                         File.WriteAllText(stored + ".xml", xml, System.Text.Encoding.Unicode);
                         if (Store.Run("schtasks.exe", $"/delete /tn \"{l.Target}\" /f").Exit != 0) throw new IOException("schtasks /delete falló");
                         q.Items.Add(new(l.Kind, l.Target, stored + ".xml"));
@@ -530,7 +531,9 @@ public static class Uninstaller
         }
         if (sameVolume) { Directory.Move(from, to); return; }
         CopyTree(from, to);
-        Cleaner.DeleteTree(from);
+        // the full copy is safe in quarantine; if something in the original is in use, it just stays where it was
+        try { Cleaner.DeleteTree(from); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Store.Log($"  copied, but part of {from} was in use and stays: {e.Message}"); }
     }
 
     static void CopyTree(string from, string to)
@@ -600,7 +603,8 @@ public static class Uninstaller
             catch (Exception e) { failed++; Store.Log($"Restore {i.Target}: {e.Message}"); }
         }
         Store.Log($"Quarantine {q.Id} restored: {ok} ok, {failed} failed");
-        if (failed == 0) Cleaner.DeleteTree(q.Dir);
+        // everything is back; an empty quarantine folder that can't go yet is harmless
+        if (failed == 0) try { Cleaner.DeleteTree(q.Dir); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { Store.Log($"Quarantine {q.Id}: folder stays: {e.Message}"); }
         return (ok, failed);
     }
 

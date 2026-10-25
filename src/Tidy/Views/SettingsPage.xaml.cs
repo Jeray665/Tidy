@@ -25,6 +25,7 @@ public partial class SettingsPage : Page
         AutoRam.IsChecked = Store.Settings.AutoRam;
         Reminder.SelectedIndex = Store.Settings.CleanReminderDays switch { 0 => 0, <= 7 => 1, _ => 2 };
         ThemeBox.SelectedIndex = Store.Settings.Theme switch { "light" => 1, "dark" => 2, _ => 0 };
+        LanguageBox.SelectedIndex = Store.Settings.Language switch { "es" => 1, "en" => 2, _ => 0 };
         Loaded += async (_, _) => Autostart.IsChecked = await Task.Run(() => Core.Autostart.IsEnabled);
     }
 
@@ -60,6 +61,16 @@ public partial class SettingsPage : Page
         Store.Settings.Theme = theme;
         Store.Save();
         Theme.Apply();
+    }
+
+    async void Language_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (LanguageBox.SelectedItem is not ComboBoxItem { Tag: string lang } || !IsLoaded) return;
+        var changes = I18n.Resolve(lang) != I18n.Resolve(Store.Settings.Language);
+        Store.Settings.Language = lang;
+        Store.Save();
+        if (changes && await Ui.Confirm("Cambiar idioma", "Tidy se reinicia para cambiar el idioma. No se pierde nada.", "Reiniciar ahora", close: "Más tarde"))
+            ((App)Application.Current).Restart(typeof(SettingsPage));
     }
 
     void OnFound(Release r) => Dispatcher.BeginInvoke(ShowUpdateState);
@@ -112,7 +123,7 @@ public partial class SettingsPage : Page
             var file = await Updater.Download(r, new Progress<double>(p => UpdateProgress.Value = p));
             UpdateStatus.Text = "Comprobado. Instalando…";
             await Task.Run(() => Updater.Apply(file));
-            ((App)Application.Current).RestartUpdated();
+            ((App)Application.Current).Restart();
         }
         catch (Exception ex)
         {

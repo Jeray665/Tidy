@@ -243,6 +243,73 @@ public record PowerPlan(Guid Id, string Name, bool Active)
         Store.Log($"Power: activate plan {id} -> {(ok ? "OK" : "error")}");
         if (ok && previous != null && previous.Id != id)
             History.Add(HistoryKind.Power, $"Plan de energía: {FriendlyName(id)}", $"Antes: {previous.Name}", $"power:{previous.Id}");
+        if (ok) PowerTimeouts.ApplySaved();   // the user's "never sleep" etc. follows them to whatever plan is active
         return ok;
     }
+
+    public static Guid ActiveId()
+    {
+        Native.PowerGetActiveScheme(IntPtr.Zero, out var p);
+        var g = Marshal.PtrToStructure<Guid>(p);
+        Native.LocalFree(p);
+        return g;
+    }
+}
+
+public record PowerTimeout(string Id, string Label, string Description, Guid Sub, Guid Setting);
+
+/// <summary>Screen off / sleep / hibernate after N minutes of inactivity (0 = never), on the active plan, plugged in and on
+/// battery alike. The choice is saved and re-applied whenever Tidy switches plans (profiles, game mode).</summary>
+public static class PowerTimeouts
+{
+    static readonly Guid SubVideo = new("7516b95f-f776-4464-8c53-06167f40cc99"), SubSleep = new("238c9fa8-0aad-41ed-83f4-97be242c8f20");
+    public static readonly PowerTimeout[] All =
+    [
+        new("display", "Apagar la pantalla", "Tras este tiempo sin tocar el ratón ni el teclado.", SubVideo, new("3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e")),
+        new("sleep", "Suspender el PC", "El PC se queda en reposo (los juegos y descargas se pausan).", SubSleep, new("29f6c1db-86da-48c5-9fdb-f2b67b1f44da")),
+        new("hibernate", "Hibernar", "Guarda todo en el disco y apaga. Tarda más en volver.", SubSleep, new("9d7815a6-7ee4-497e-8888-515a05f02364")),
+    ];
+
+    public static bool HibernateAvailable =>
+        Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Power", "HibernateEnabled", 0) is int h && h != 0;
+
+    /// <summary>Laptops and tablets. Desktops have no battery (flag 128), so the "on battery" value never applies there.</summary>
+    public static bool HasBattery => Native.GetSystemPowerStatus(out var s) && (s.BatteryFlag & 128) == 0 && s.BatteryFlag != 255;
+
+    public static (uint Ac, uint Dc) Read(PowerTimeout t)
+    {
+        var (scheme, sub, setting) = (PowerPlan.ActiveId(), t.Sub, t.Setting);
+        Native.PowerReadACValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, out var ac);
+        Native.PowerReadDCValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, out var dc);
+        return (ac, dc);
+    }
+
+    /// <summary>Seconds, 0 = never. Records the previous values in History so it can be undone.</summary>
+    public static bool Write(PowerTimeout t, uint ac, uint dc, bool record = true)
+    {
+        var old = Read(t);
+        var (scheme, sub, setting) = (PowerPlan.ActiveId(), t.Sub, t.Setting);
+        var ok = Native.PowerWriteACValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, ac) == 0
+              && Native.PowerWriteDCValueIndex(IntPtr.Zero, ref scheme, ref sub, ref setting, dc) == 0
+              && Native.PowerSetActiveScheme(IntPtr.Zero, ref scheme) == 0;   // re-activating applies the new values now
+        Store.Log($"Power: {t.Id} -> {ac}s AC / {dc}s DC (was {old.Ac}/{old.Dc}) {(ok ? "OK" : "error")}");
+        if (ok && record && old != (ac, dc))
+            History.Add(HistoryKind.Power, $"{t.Label}: {Describe(ac)}", $"Antes: {Describe(old.Ac)}", $"powertime:{t.Id}:{old.Ac}:{old.Dc}");
+        return ok;
+    }
+
+    public static void ApplySaved()
+    {
+        foreach (var t in All)
+            if (Store.Settings.PowerTimeouts.TryGetValue(t.Id, out var secs) && Read(t) != ((uint)secs, (uint)secs))
+                Write(t, (uint)secs, (uint)secs, record: false);
+    }
+
+    public static string Describe(uint secs) => secs switch
+    {
+        0 => "nunca",
+        < 60 => $"{secs} s",
+        < 3600 => $"{secs / 60} min",
+        _ => secs % 3600 == 0 ? $"{secs / 3600} h" : $"{secs / 3600} h {secs % 3600 / 60} min",
+    };
 }

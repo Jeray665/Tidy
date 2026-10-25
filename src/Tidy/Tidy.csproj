@@ -14,7 +14,7 @@
     <ApplicationIcon>Assets\tidy.ico</ApplicationIcon>
     <AssemblyTitle>Tidy</AssemblyTitle>
     <Product>Tidy</Product>
-    <Version>1.1.1</Version>
+    <Version>1.0.0</Version>
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <SatelliteResourceLanguages>es</SatelliteResourceLanguages>
   </PropertyGroup>
@@ -29,6 +29,7 @@
     <Resource Include="Assets\tidy.png" />
     <Resource Include="Assets\tidy-dark.ico" />
     <Resource Include="Assets\tidy-dark.png" />
+    <Resource Include="Assets\i18n\en.json" />
     <Resource Include="..\..\CHANGELOG.md" Link="Assets\CHANGELOG.md" />
   </ItemGroup>
 

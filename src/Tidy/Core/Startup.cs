@@ -2,6 +2,7 @@ using System.IO;
 using System.Security;
 using System.Security.Principal;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace Tidy.Core;
@@ -133,11 +134,26 @@ public static class StartupApps
         var data = new byte[12];
         data[0] = enabled ? (byte)2 : (byte)3;
         if (!enabled) BitConverter.GetBytes(DateTime.Now.ToFileTime()).CopyTo(data, 4);
+        var was = app.Enabled;
         using var k = app.ApprovedHive.CreateSubKey(Approved + app.ApprovedKey, true);
         k.SetValue(app.ApprovedName, data, RegistryValueKind.Binary);
         app.Enabled = enabled;
         Store.Log($"Windows startup: {(enabled ? "enabled" : "disabled")} '{app.Name}' ({app.Command})");
-        History.Add(HistoryKind.Startup, $"Inicio de Windows: {app.Name} {(enabled ? "activado" : "desactivado")}", "", "startup");
+        History.Add(HistoryKind.Startup, $"Inicio de Windows: {app.Name} {(enabled ? "activado" : "desactivado")}", "", $"startup:{Key(app)}|{(was ? 1 : 0)}");
+    }
+
+    /// <summary>Identifies an entry across restarts: hive, StartupApproved subkey and value name.</summary>
+    public static string Key(StartupApp a) => $"{(a.ApprovedHive.Name.Contains("LOCAL_MACHINE") ? "HKLM" : "HKCU")}|{a.ApprovedKey}|{a.ApprovedName}";
+
+    /// <summary>Undo from History: "HKCU|Run|name|1" puts that entry back to enabled (1) or disabled (0).</summary>
+    public static bool Restore(string arg)
+    {
+        var cut = arg.LastIndexOf('|');
+        if (cut < 0 || arg[(cut + 1)..] is not ("0" or "1")) return false;
+        var app = List().FirstOrDefault(a => Key(a) == arg[..cut]);
+        if (app == null) return false;
+        SetEnabled(app, arg[^1] == '1');
+        return true;
     }
 
     public static string? ExeFromCommand(string cmd)
@@ -162,5 +178,88 @@ public static class StartupApps
             return string.IsNullOrWhiteSpace(desc) ? valueName : desc.Trim();
         }
         catch { return valueName; }
+    }
+}
+
+public enum PresetKind { App, Service, Task }
+
+/// <summary>One thing a startup preset would change. Level 1 = Ligero, 2 = Equilibrado, 3 = Máximo.</summary>
+public record PresetItem(PresetKind Kind, string Name, string Detail, string Why, int Level, Func<(bool Ok, string Message)> Apply);
+
+/// <summary>
+/// Third-party things that start with Windows and only cost performance, grouped by how far to go. Everything goes through
+/// the normal reversible paths (StartupApproved flag, service start type with backup, task enable flag with backup), so each
+/// change lands in History with its undo. Services only ever go to Manual, never Disabled.
+/// </summary>
+public static class StartupPresets
+{
+    public static readonly string[] Names = ["Ligero", "Equilibrado", "Máximo"];
+    public static readonly string[] Descriptions =
+    [
+        "Solo telemetría e informes de errores de otros programas. No hacen falta para que nada funcione.",
+        "Además, lanzadores de juegos y apps de chat, música o navegador: se abren igual cuando los necesitas, pero no al encender.",
+        "Además, el resto de apps de terceros que arrancan solas y algunos servicios conocidos que no hacen falta al encender (pasan a manual).",
+    ];
+
+    // never offered at any level: security patches, protection, licences, VPN and remote access, servers, backups, passwords
+    static readonly Regex Protect = new(@"update|updater|upgrade|patch|defender|security|antivirus|anti-?virus|malware|avast|\bavg\b|kaspersky|eset|bitdefender|norton|mcafee|sophos|firewall|vpn|wireguard|cloudflare|warp|tailscale|zerotier|zscaler|globalprotect|forticlient|proxy|license|licencia|flexnet|sentinel|hasp|codemeter|teamviewer|anydesk|rustdesk|parsec|remote|backup|veeam|acronis|sql|database|mysql|postgres|apache|nginx|server|docker|vmware|virtualbox|wsl|password|bitwarden|1password|keepass|lastpass|dashlane|yubi|authenticator|claude|anthropic|tidy", RegexOptions.IgnoreCase);
+    static readonly Regex Telemetry = new(@"telemetry|crash|reporter|diagnostic|feedback|ceip|analytics|metrics", RegexOptions.IgnoreCase);
+    // hardware and things people expect to work right after logging in
+    static readonly Regex Hardware = new(@"audio|sound|realtek|nahimic|dolby|sonic|goxlr|elgato|stream ?deck|wave ?link|voicemeeter|equalizer|logi|razer|corsair|icue|steelseries|hyperx|asus|armoury|msi|gigabyte|nzxt|rgb|fan|cooler|afterburner|rivatuner|rtss|hwinfo|synaptics|elan|touchpad|keyboard|mouse|wacom|tobii|controller|xbox|ds4|dualsense|8bitdo|oculus|steamvr|vive|webcam|camera|bluetooth|nvidia|geforce|\bamd\b|radeon|intel|onedrive|dropbox|google ?drive|icloud|nextcloud|\bime\b|input|print|scanner|epson|canon|brother|\bhp\b", RegexOptions.IgnoreCase);
+    // third-party services that are safe on Manual: they start on demand when their program needs them
+    static readonly Regex IdleServices = new(@"bonjour|mdnsresponder|wondershare|iobit|driver ?booster|drivereasy|ccleaner|glary|wise ?care|advanced ?systemcare|adobe ?genuine|agsservice", RegexOptions.IgnoreCase);
+    static readonly Regex Launchers = new(@"steam|epic|eadesktop|\bea app\b|origin|ubisoft|uplay|battle\.net|gog|riot|discord|spotify|teams|skype|zoom|whatsapp|telegram|slack|messenger|opera|brave|vivaldi|\bedge\b|msedge|chrome|firefox|cortana|itunes|helper", RegexOptions.IgnoreCase);
+
+    static readonly Regex Squirrel = new(@"\S*Update\.exe""?\s+--processStart", RegexOptions.IgnoreCase);
+
+    /// <summary>Lower level = safer to turn off. Null = never touched.</summary>
+    public static int? Level(string text, bool launchersAllowed = true) =>
+        Protect.IsMatch(text) ? null
+        : Telemetry.IsMatch(text) ? 1
+        : Hardware.IsMatch(text) ? null
+        : launchersAllowed && Launchers.IsMatch(text) ? 2
+        : 3;
+
+    /// <summary>Everything the "Máximo" preset would change on this PC right now (lower presets take the items up to their level).</summary>
+    public static List<PresetItem> Candidates()
+    {
+        var list = new List<PresetItem>();
+        foreach (var a in StartupApps.List().Where(a => a.Enabled))
+            // Squirrel apps (Discord, Slack…) start through "Update.exe --processStart App.exe": that's a launcher, not an updater
+            if (Level($"{a.Name} {Squirrel.Replace(a.Command, "")} {a.Publisher}") is { } l)
+                list.Add(new(PresetKind.App, a.Name, string.IsNullOrEmpty(a.Publisher) ? "App de inicio" : $"App de inicio · {a.Publisher}",
+                    l == 1 ? "Envía estadísticas o informes de errores a su fabricante." :
+                    l == 2 ? "Se abre sola al encender. Puedes abrirla cuando la vayas a usar." :
+                             "Arranca sola con Windows. Sigue instalada y se abre normal cuando la necesites.",
+                    l, () => { StartupApps.SetEnabled(a, false); return (true, ""); }));
+
+        var win = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        foreach (var s in Services.List().Where(s => !s.Protected && s.StartMode.StartsWith("Automático")))
+        {
+            var exe = StartupApps.ExeFromCommand(s.Path);
+            if (exe == null || exe.StartsWith(win, StringComparison.OrdinalIgnoreCase) || !File.Exists(exe)) continue;
+            var company = FileVersionInfo(exe);
+            var text = $"{s.Name} {s.Display} {exe} {company}";
+            if (text.Contains("Microsoft", StringComparison.OrdinalIgnoreCase)) continue;
+            // services break programs more easily than startup apps: only telemetry and a short list of known idle ones
+            if (Level(text, launchersAllowed: false) is { } l && (l == 1 || IdleServices.IsMatch(text)))
+                list.Add(new(PresetKind.Service, s.Display, string.IsNullOrEmpty(company) ? "Servicio" : $"Servicio · {company}",
+                    l == 1 ? "Servicio de telemetría. Pasa a manual: deja de arrancar con Windows."
+                           : "Servicio de terceros que arranca siempre con Windows. En manual arranca solo cuando su programa lo pide.",
+                    l, () => Services.SetMode(s.Name, StartMode.Manual)));
+        }
+
+        foreach (var t in ScheduledTasks.List().Where(t => t.Enabled && t.CanChange && !t.Path.StartsWith(@"\Microsoft\Windows\", StringComparison.OrdinalIgnoreCase)))
+            if (!Protect.IsMatch($"{t.Path} {t.Action}") && Telemetry.IsMatch($"{t.Path} {t.Action}"))
+                list.Add(new(PresetKind.Task, t.Name, StartupApps.ExeFromCommand(t.Action) is { } exe && FileVersionInfo(exe) is { Length: > 0 } c ? $"Tarea programada · {c}" : "Tarea programada",
+                    "Tarea de telemetría o informes de errores. Se puede desactivar sin perder nada.", 1, () => ScheduledTasks.SetEnabled(t.Path, false)));
+
+        return list.OrderBy(i => i.Level).ThenBy(i => i.Kind).ThenBy(i => i.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
+    static string FileVersionInfo(string exe)
+    {
+        try { return System.Diagnostics.FileVersionInfo.GetVersionInfo(exe).CompanyName?.Trim() ?? ""; }
+        catch { return ""; }
     }
 }

@@ -2,7 +2,7 @@ namespace Tidy.Core;
 
 public enum HistoryKind { Tweak, Service, Task, Network, Uninstall, Clean, Files, App, Power, Startup, Game }
 
-/// <param name="Undo">What undoes it: "tweak:id", "service:name", "task:path", "dns", "hosts:copy", "quarantine:id", "winget:id", "recycle", "power:guid", "startup". Null = nothing to undo.</param>
+/// <param name="Undo">What undoes it: "tweak:id", "service:name", "task:path", "dns", "hosts:copy", "quarantine:id", "winget:id", "recycle", "power:guid", "powertime:id:ac:dc", "startup", "startup:key|0/1", "policies:hive|key|name|value;…". Null = nothing to undo.</param>
 public record HistoryEntry(DateTime When, HistoryKind Kind, string Title, string Detail, string? Undo);
 
 /// <summary>

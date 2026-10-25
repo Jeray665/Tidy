@@ -46,6 +46,11 @@ public static class Updater
             Store.Log($"Update check: GitHub API limited ({(int)e.StatusCode}), using the releases page");
             r = await FromReleasesPage();
         }
+        catch (HttpRequestException e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            Store.Log("Update check: no release published on GitHub yet");
+            r = null; // nothing to update to: same as being up to date
+        }
         Store.Settings.LastUpdateCheck = DateTime.Now;
         Store.Save();
         Available = r != null && r.Version > Current ? r : null;
@@ -110,22 +115,25 @@ public static class Updater
         Directory.CreateDirectory(Store.DownloadsDir);
         var path = Path.Combine(Store.DownloadsDir, $"Tidy-{r.Version}.exe");
         var part = path + ".part";
-        using (var resp = await Http.GetAsync(r.DownloadUrl, HttpCompletionOption.ResponseHeadersRead))
+        try
         {
-            resp.EnsureSuccessStatusCode();
-            await using var src = await resp.Content.ReadAsStreamAsync();
-            await using var dst = File.Create(part);
-            var buf = new byte[81920]; long done = 0; int n;
-            while ((n = await src.ReadAsync(buf)) > 0)
+            using (var resp = await Http.GetAsync(r.DownloadUrl, HttpCompletionOption.ResponseHeadersRead))
             {
-                await dst.WriteAsync(buf.AsMemory(0, n));
-                done += n;
-                if (done > r.Size) throw new InvalidDataException("La descarga es más grande de lo anunciado.");
-                progress?.Report((double)done / r.Size);
+                resp.EnsureSuccessStatusCode();
+                await using var src = await resp.Content.ReadAsStreamAsync();
+                await using var dst = File.Create(part);
+                var buf = new byte[81920]; long done = 0; int n;
+                while ((n = await src.ReadAsync(buf)) > 0)
+                {
+                    await dst.WriteAsync(buf.AsMemory(0, n));
+                    done += n;
+                    if (done > r.Size) throw new InvalidDataException("La descarga es más grande de lo anunciado.");
+                    progress?.Report((double)done / r.Size);
+                }
             }
+            Verify(part, r, sha);
         }
-        try { Verify(part, r, sha); }
-        catch { File.Delete(part); throw; }
+        catch { try { File.Delete(part); } catch (IOException) { } throw; }
         File.Move(part, path, true);
         Store.Log($"Update {r.Version} downloaded and verified ({path})");
         return path;

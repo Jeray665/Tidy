@@ -21,6 +21,11 @@
             </StackPanel>
         </Border>
 
+        <TextBlock Text="Preconfiguraciones" Style="{StaticResource Section}" />
+        <TextBlock Style="{StaticResource Muted}" FontSize="13" Margin="2,-4,0,10" TextWrapping="Wrap"
+                   Text="Apaga de una vez lo de otros programas que arranca solo y solo quita rendimiento. Antes ves la lista con el motivo de cada cosa y puedes desmarcar lo que quieras. Nunca toca actualizadores, antivirus, audio, ratón y teclado, la nube ni nada de Windows. Todo se deshace desde Historial." />
+        <UniformGrid x:Name="Presets" Columns="3" />
+
         <TextBlock Text="Apps" Style="{StaticResource Section}" />
         <ItemsControl x:Name="List">
             <ItemsControl.ItemTemplate>

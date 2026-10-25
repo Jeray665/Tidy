@@ -55,6 +55,8 @@ public static class ScheduledTasks
     }
 
     public static bool Exists(string path) => Get(path) != null;
+    /// <summary>The task's exact definition (schtasks /query /xml goes through the console code page and loses accents).</summary>
+    public static string? Xml(string path) { try { return Get(path)?.Xml as string; } catch { return null; } }
     public static bool IsEnabled(string path) => Get(path) is { } t && (bool)t.Enabled;
 
     public static bool CanChange(string path) =>

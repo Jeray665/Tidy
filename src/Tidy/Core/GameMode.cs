@@ -22,6 +22,8 @@ public static class GameMode
     static List<(string Launcher, string Root)> _roots = [];
     static readonly Dictionary<int, string?> _paths = [];
     static readonly Dictionary<int, ProcessPriorityClass> _lowered = [];
+    // Tick runs on the monitor thread, Stop also from the UI when the switch is turned off
+    static readonly object _gate = new();
 
     /// <summary>Background apps that never need foreground speed while you play. Only lowered, never closed.</summary>
     static readonly string[] Background = ["OneDrive", "Dropbox", "GoogleDriveFS", "MEGAsync", "iCloudDrive", "ms-teams", "Teams", "Slack", "CCXProcess", "Creative Cloud"];
@@ -89,7 +91,9 @@ public static class GameMode
     }
 
     /// <summary>Called from the background monitor. Cheap: only new processes get their path looked up.</summary>
-    public static void Tick()
+    public static void Tick() { lock (_gate) TickLocked(); }
+
+    static void TickLocked()
     {
         var s = Store.Settings;
         if (Current == null && s.GameModePrevPlan is { } stale) RestorePlan(stale); // left over from a crash
@@ -153,7 +157,7 @@ public static class GameMode
         if (s.GameModeRam && Memory.PurgeStandby($"modo juego: {name}") > 0) done.Add("RAM liberada");
         if (s.GameModePriority)
         {
-            try { using var g = Process.GetProcessById(pid); if (g.PriorityClass == ProcessPriorityClass.Normal) g.PriorityClass = ProcessPriorityClass.AboveNormal; done.Add("prioridad al juego"); } catch { }
+            try { using var g = Process.GetProcessById(pid); if (g.PriorityClass == ProcessPriorityClass.Normal) { g.PriorityClass = ProcessPriorityClass.AboveNormal; done.Add("prioridad al juego"); } } catch { }
             foreach (var n in Background)
                 foreach (var p in Process.GetProcessesByName(n))
                     using (p)
@@ -164,7 +168,9 @@ public static class GameMode
         Changed?.Invoke(Current);
     }
 
-    public static void Stop()
+    public static void Stop() { lock (_gate) StopLocked(); }
+
+    static void StopLocked()
     {
         var name = Current;
         foreach (var (pid, prio) in _lowered)

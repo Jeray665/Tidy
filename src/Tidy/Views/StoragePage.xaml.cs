@@ -184,6 +184,7 @@ public partial class StoragePage : Page
             DupStatus.Text = groups.Count == 0 ? "No hay duplicados." : $"{groups.Count} grupos · {Store.FormatBytes(waste)} en copias repetidas";
         }
         catch (OperationCanceledException) { DupStatus.Text = "Búsqueda cancelada."; }
+        catch (Exception ex) { DupStatus.Text = $"Error: {ex.Message}"; } // e.g. a chosen folder that was removed meanwhile
         finally { _cts = null; DupBtn.Content = "Buscar duplicados"; }
     }
 

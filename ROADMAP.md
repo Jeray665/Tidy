@@ -1,8 +1,8 @@
 # Hoja de ruta de Tidy
 
-Se trabaja por fases, de arriba abajo. Cada punto se marca al terminarlo y probarlo (pruebas automáticas en carpeta aislada + revisión visual).
+Se trabaja por fases, de arriba abajo. La primera versión pública (1.0.0) sale cuando estén las tres fases. Cada punto se marca al terminarlo y probarlo (pruebas automáticas en carpeta aislada + revisión visual).
 
-## Fase 1 · Arreglos y base (hecha en 1.1.0)
+## Fase 1 · Arreglos y base (hecha)
 
 - [x] **BUG: "Analizar el disco C:" (CHKDSK)** abre la consola sin permisos de administrador.
 - [x] **BUG: Hardware muestra mal las pantallas.** Con 3 monitores solo aparece uno (1080p a 144 Hz). Debe listar todas, con resolución y frecuencia reales.
@@ -19,18 +19,20 @@ Se trabaja por fases, de arriba abajo. Cada punto se marca al terminarlo y proba
   - En Ajustes: versión actual, "Buscar actualizaciones" y enlace a la página de GitHub.
   - Si una versión futura quita una función que habías usado, sus cambios se podrán **restablecer desde Ajustes** (sus copias de seguridad se conservan).
 
-## Fase 2 · Experiencia (siguiente)
+- [x] Icono antiguo en el menú Inicio tras actualizar: Windows guardaba en caché el de la primera versión; ahora se le avisa al instalar o actualizar.
 
-- [ ] **Notificaciones nuevas:** más bonitas, varias a la vez (máximo 3 visibles, sin listas infinitas). Si se repite la misma, se agrupa con un contador "×3" en vez de duplicarse.
-- [ ] **Plan de energía configurable:** decidir si el plan aplicado suspende el PC, apaga la pantalla o hiberna (y a los cuántos minutos), o nunca.
-- [ ] **Mini app de la bandeja más completa:** secciones a la izquierda y controles rápidos (RAM, plan de energía, modo juego, limpieza rápida…) sin entrar en la app grande.
-- [ ] **Varios idiomas** elegibles en Ajustes (español e inglés primero).
+## Fase 2 · Experiencia (en curso)
+
+- [x] **Notificaciones nuevas:** más bonitas, varias a la vez (máximo 3 visibles, sin listas infinitas). Si se repite la misma, se agrupa con un contador "×3" en vez de duplicarse.
+- [x] **Plan de energía configurable:** decidir si el plan aplicado suspende el PC, apaga la pantalla o hiberna (y a los cuántos minutos), o nunca.
+- [x] **Mini app de la bandeja más completa:** secciones a la izquierda (Resumen, Rendimiento, Limpieza) y controles rápidos (RAM, plan de energía, modo juego, limpieza con lista previa) sin entrar en la app grande. El clic derecho tiene submenú de plan de energía y modo juego.
+- [x] **Varios idiomas** elegibles en Ajustes: español e inglés (o el de Windows). `tools/i18n.py` recoge todos los textos y la publicación se para si falta alguna traducción.
 
 ## Fase 3 · Más control y calidad
 
-- [ ] **Lo que arranca solo y solo quita rendimiento:** procesos, servicios, tareas y apps en segundo plano de terceros, con preconfiguraciones por nivel de rendimiento. Siempre con lista previa, explicación y deshacer.
-- [ ] **Optimizar la propia app:** medir memoria, CPU en reposo y tiempo de arranque, y mejorar donde se pueda.
-- [ ] **Revisión de bugs archivo por archivo**, sin ejecutar nada en el PC, y arreglo de lo que aparezca.
+- [x] **Lo que arranca solo y solo quita rendimiento:** procesos, servicios, tareas y apps en segundo plano de terceros, con preconfiguraciones por nivel de rendimiento. Siempre con lista previa, explicación y deshacer.
+- [x] **Optimizar la propia app:** medido: abre la ventana en menos de 1 s; en la bandeja usa unos 118 MB y casi nada de CPU (0,05 s por minuto). Al cerrar la ventana devuelve su memoria, y las lecturas en vivo solo corren con algo visible.
+- [x] **Revisión de bugs archivo por archivo**, sin ejecutar nada en el PC: arreglados el deshacer de valores del registro de cualquier tipo, la copia previa obligatoria al desinstalar servicios y tareas, el plan de energía que quedaba en "Máximo" si cerrabas Tidy jugando, descargas a medias que no se borraban y varios errores que dejaban pantallas a medio cargar.
 
 ## Hecho
 
