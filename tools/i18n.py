@@ -85,6 +85,7 @@ def human(s, line_text='', nested=False):
     if 'Log(' in line_text or 'DllImport' in line_text: return False
     if CODE.search(t) and not SPANISH.search(t): return False
     if re.fullmatch(r'[A-Za-z0-9]+', t) and re.search(r'\d', t): return False  # symbol names like Broom24
+    if re.fullmatch(r'\d+ [a-záéíóúñü]{3,}', t): return True  # singulars like "1 archivo"
     words = re.findall(r'[A-Za-zÁÉÍÓÚÑáéíóúñü]{2,}', t)
     if re.search(r'\{\d\}', t) and re.search(r'[A-Za-zÁÉÍÓÚÑáéíóúñü]{3}', re.sub(r'\{\d\}', '', t)): return True  # "Disco {0}", "{0} hilos"
     return bool(SPANISH.search(t)) or bool(WORD.match(t)) or (len(words) >= 2 and ' ' in t)
@@ -104,7 +105,7 @@ def collect():
                         found.setdefault(s, os.path.relpath(p, ROOT))
             elif f.endswith('.xaml'):
                 x = io.open(p, encoding='utf-8-sig').read()
-                for m in re.finditer(r'\b(Text|Content|Header|ToolTip|Title|Description|PlaceholderText)="([^"{][^"]*)"', x):
+                for m in re.finditer(r'\b(Text|Content|Header|ToolTip|Title|Description|PlaceholderText|Hint)="([^"{][^"]*)"', x):
                     s = (m.group(2).replace('&quot;', '"').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
                          .replace('&#10;', '\n').replace('&#xA;', '\n'))
                     # in XAML these attributes are always shown, so lowercase pieces like Run "  ·  publicado " count too

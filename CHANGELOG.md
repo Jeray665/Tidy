@@ -1,5 +1,13 @@
 # Novedades de Tidy
 
+## 1.1.1
+- Descargas y Duplicados tienen ahora los mismos filtros que el análisis de disco: por tipo de archivo, por tamaño y columnas que se ordenan con un clic. En Duplicados cada grupo de copias se mueve entero.
+- Descargas: "Mover a otra carpeta", igual que en el análisis de disco, y se devuelve todo a su sitio desde Historial.
+- La pestaña Descargas ya no deja la app sin responder mientras carga muchos archivos.
+- El archivo en el que haces clic se marca en gris en vez de con el color de Windows.
+- El aviso de versión nueva aparece justo después de publicarse, sin esperar.
+- Textos que salían en español con Tidy en inglés.
+
 ## 1.1.0
 - Al abrir Tidy se comprueba si hay versión nueva, y si la hay sale un aviso arriba con "Actualizar" y "Ocultar aviso".
 - Análisis de disco renovado: tabla con filtros por tipo (documentos, imágenes, comprimidos, vídeos, audio) y por tamaño, columnas que se ordenan con un clic y el total de lo que marcas.

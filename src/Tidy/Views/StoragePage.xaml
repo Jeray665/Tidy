@@ -3,29 +3,8 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:local="clr-namespace:Tidy"
+      xmlns:v="clr-namespace:Tidy.Views"
       Title="Almacenamiento">
-    <Page.Resources>
-        <!-- one selectable file row (large files, downloads, duplicates) -->
-        <DataTemplate x:Key="FileRow">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="90" />
-                    <ColumnDefinition Width="90" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <CheckBox IsChecked="{Binding Selected, Mode=TwoWay}" IsEnabled="{Binding CanSelect}" VerticalAlignment="Center" MinWidth="0" ToolTip="{Binding LockReason}" />
-                <StackPanel Grid.Column="1" Margin="4,0,8,0" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="13" />
-                    <TextBlock Text="{Binding Folder}" TextTrimming="CharacterEllipsis" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" ToolTip="{Binding Path}" />
-                </StackPanel>
-                <TextBlock Grid.Column="2" Text="{Binding DateText}" Style="{StaticResource Muted}" VerticalAlignment="Center" HorizontalAlignment="Right" />
-                <TextBlock Grid.Column="3" Text="{Binding SizeText}" VerticalAlignment="Center" HorizontalAlignment="Right" FontWeight="SemiBold" />
-                <ui:Button Grid.Column="4" Icon="{ui:SymbolIcon FolderOpen24}" Padding="7,5" Margin="12,0,0,0" ToolTip="Abrir ubicación" Tag="{Binding Path}" Click="Locate_Click" />
-            </Grid>
-        </DataTemplate>
-    </Page.Resources>
 
     <StackPanel Margin="36,20,36,36">
         <TextBlock Text="Almacenamiento" Style="{StaticResource PageTitle}" />
@@ -100,74 +79,14 @@
                                    Text="Recorre el disco una vez (1-3 minutos) y te dice qué carpetas y archivos ocupan más." />
                     </Grid>
                     <StackPanel x:Name="ScanResults" Margin="0,14,0,0" Visibility="Collapsed">
-                        <!-- type chips (with counts) and the size filter -->
-                        <Grid Margin="0,0,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <WrapPanel x:Name="KindChips" VerticalAlignment="Center" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="Tamaño" FontWeight="SemiBold" VerticalAlignment="Center" Margin="12,0,8,0" />
-                                <ComboBox x:Name="MinSize" Width="160" SelectedIndex="1" SelectionChanged="FileFilter_Changed">
-                                    <ComboBoxItem Content="Más de 10 MB" Tag="10485760" />
-                                    <ComboBoxItem Content="Más de 100 MB" Tag="104857600" />
-                                    <ComboBoxItem Content="Más de 1 GB" Tag="1073741824" />
-                                </ComboBox>
-                            </StackPanel>
-                        </Grid>
-                        <!-- column headers: click to sort, again to reverse -->
-                        <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Padding="0,0,0,4" Margin="0,0,0,2">
-                            <Grid x:Name="Headers">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="70" />
-                                    <ColumnDefinition Width="2*" />
-                                    <ColumnDefinition Width="130" />
-                                    <ColumnDefinition Width="100" />
-                                    <ColumnDefinition Width="2*" />
-                                    <ColumnDefinition Width="44" />
-                                </Grid.ColumnDefinitions>
-                                <ui:Button Grid.Column="1" Content="Nombre" Tag="name" Click="Sort_Click" Appearance="Transparent" BorderThickness="0" Padding="6,4" Margin="5,0,0,0" />
-                                <ui:Button Grid.Column="2" Content="Modificado" Tag="date" Click="Sort_Click" Appearance="Transparent" BorderThickness="0" Padding="6,4" Margin="6,0,0,0" />
-                                <ui:Button Grid.Column="3" Content="Tamaño" Tag="size" Click="Sort_Click" Appearance="Transparent" BorderThickness="0" Padding="6,4" HorizontalAlignment="Right" Margin="0,0,-6,0" />
-                                <ui:Button Grid.Column="4" Content="Ubicación" Tag="path" Click="Sort_Click" Appearance="Transparent" BorderThickness="0" Padding="6,4" Margin="18,0,0,0" />
-                            </Grid>
-                        </Border>
-                        <ListBox x:Name="LargeList" Style="{StaticResource RowList}" local:Ui.FillBelow="52">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid ToolTip="{Binding LockReason}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="26" />
-                                            <ColumnDefinition Width="2*" />
-                                            <ColumnDefinition Width="130" />
-                                            <ColumnDefinition Width="100" />
-                                            <ColumnDefinition Width="2*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <CheckBox IsChecked="{Binding Selected, Mode=TwoWay}" IsEnabled="{Binding CanSelect}" VerticalAlignment="Center" MinWidth="0" />
-                                        <ui:SymbolIcon Grid.Column="1" Symbol="{Binding KindIcon}" FontSize="18" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="13" VerticalAlignment="Center" Margin="6,0,8,0" ToolTip="{Binding Name}" />
-                                        <TextBlock Grid.Column="3" Text="{Binding DateText}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="6,0,0,0" />
-                                        <TextBlock Grid.Column="4" Text="{Binding SizeText}" VerticalAlignment="Center" HorizontalAlignment="Right" FontWeight="SemiBold" Margin="0,0,6,0" />
-                                        <TextBlock Grid.Column="5" Text="{Binding Folder}" Style="{StaticResource Muted}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="18,0,8,0" ToolTip="{Binding Path}" />
-                                        <ui:Button Grid.Column="6" Icon="{ui:SymbolIcon FolderOpen24}" Padding="7,5" ToolTip="Abrir ubicación" Tag="{Binding Path}" Click="Locate_Click" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <Grid Margin="0,8,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock x:Name="LargeSel" Style="{StaticResource Muted}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <ui:Button x:Name="MoveBtn" Content="Mover a otra carpeta…" Icon="{ui:SymbolIcon FolderArrowRight24}" Click="Move_Click" IsEnabled="False" />
-                                <ui:Button x:Name="LargeRecycle" Content="Enviar a la Papelera" Icon="{ui:SymbolIcon Delete24}" Appearance="Danger" Margin="8,0,0,0" Tag="LargeList" Click="Recycle_Click" IsEnabled="False" />
-                            </StackPanel>
-                        </Grid>
+                        <v:FileTable x:Name="LargeTable" StartSize="2" Hint="Marca archivos para moverlos o enviarlos a la Papelera. Los de Windows, programas y juegos no se pueden marcar.">
+                            <v:FileTable.Actions>
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:Button Content="Mover a otra carpeta…" Icon="{ui:SymbolIcon FolderArrowRight24}" Tag="LargeTable" Click="Move_Click" />
+                                    <ui:Button Content="Enviar a la Papelera" Icon="{ui:SymbolIcon Delete24}" Appearance="Danger" Margin="8,0,0,0" Tag="LargeTable" Click="Recycle_Click" />
+                                </StackPanel>
+                            </v:FileTable.Actions>
+                        </v:FileTable>
 
                         <TextBlock Text="Carpetas que más ocupan" Style="{StaticResource Section}" />
                         <StackPanel>
@@ -204,8 +123,14 @@
                             <ui:Button Content="Desmarcar todo" Click="UnselectDownloads_Click" />
                         </StackPanel>
                     </Grid>
-                    <ListBox x:Name="DownloadList" Style="{StaticResource RowList}" local:Ui.FillBelow="48" Margin="0,10,0,0" ItemTemplate="{StaticResource FileRow}" />
-                    <ui:Button HorizontalAlignment="Right" Margin="0,8,0,0" Content="Enviar marcados a la Papelera" Icon="{ui:SymbolIcon Delete24}" Appearance="Danger" Tag="DownloadList" Click="Recycle_Click" />
+                    <v:FileTable x:Name="DownloadTable" Margin="0,10,0,0" Hint="Marca archivos para moverlos o enviarlos a la Papelera.">
+                        <v:FileTable.Actions>
+                            <StackPanel Orientation="Horizontal">
+                                <ui:Button Content="Mover a otra carpeta…" Icon="{ui:SymbolIcon FolderArrowRight24}" Tag="DownloadTable" Click="Move_Click" />
+                                <ui:Button Content="Enviar a la Papelera" Icon="{ui:SymbolIcon Delete24}" Appearance="Danger" Margin="8,0,0,0" Tag="DownloadTable" Click="Recycle_Click" />
+                            </StackPanel>
+                        </v:FileTable.Actions>
+                    </v:FileTable>
                 </StackPanel>
             </TabItem>
 
@@ -228,32 +153,11 @@
                         </ComboBox>
                         <TextBlock x:Name="DupStatus" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="14,0,0,0" />
                     </StackPanel>
-                    <ListBox x:Name="DupList" Style="{StaticResource RowList}" local:Ui.FillBelow="48" Margin="0,12,0,0" Visibility="Collapsed">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <ContentControl Content="{Binding}">
-                                    <ContentControl.Style>
-                                        <Style TargetType="ContentControl">
-                                            <Setter Property="ContentTemplate" Value="{StaticResource FileRow}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsHeader}" Value="True">
-                                                    <Setter Property="ContentTemplate">
-                                                        <Setter.Value>
-                                                            <DataTemplate>
-                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="0,8,0,0" />
-                                                            </DataTemplate>
-                                                        </Setter.Value>
-                                                    </Setter>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </ContentControl.Style>
-                                </ContentControl>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                    <ui:Button x:Name="DupRecycle" HorizontalAlignment="Right" Margin="0,8,0,0" Content="Enviar copias marcadas a la Papelera" Icon="{ui:SymbolIcon Delete24}"
-                               Appearance="Danger" Tag="DupList" Click="Recycle_Click" Visibility="Collapsed" />
+                    <v:FileTable x:Name="DupTable" Margin="0,12,0,0" Visibility="Collapsed" Hint="En cada grupo se marcan todas las copias menos la más antigua. Tidy nunca deja que borres todas.">
+                        <v:FileTable.Actions>
+                            <ui:Button Content="Enviar copias marcadas a la Papelera" Icon="{ui:SymbolIcon Delete24}" Appearance="Danger" Tag="DupTable" Click="Recycle_Click" />
+                        </v:FileTable.Actions>
+                    </v:FileTable>
                 </StackPanel>
             </TabItem>
         </TabControl>

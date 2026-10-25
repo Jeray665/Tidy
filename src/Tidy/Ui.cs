@@ -26,6 +26,8 @@ public static class Ui
         new PropertyMetadata(-1.0, (d, _) =>
         {
             if (d is not FrameworkElement list) return;
+            // a list without a height measures every row (4,000 downloads = minutes frozen): start bounded, Fit grows it
+            if (double.IsNaN(list.Height)) list.Height = 360;
             void Fit(object? s, EventArgs e)
             {
                 if (!list.IsVisible) return;

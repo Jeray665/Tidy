@@ -48,7 +48,13 @@ public static class Updater
         Release? r;
         try
         {
-            using var doc = JsonDocument.Parse(await Http.GetStringAsync(Api));
+            // GitHub's CDN keeps this answer for 60 s ("max-age=60"): right after a release it still says the old version.
+            // A unique query string plus no-cache always gets the current one; the API ignores the extra parameter.
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"{Api}?t={DateTime.UtcNow.Ticks}");
+            req.Headers.CacheControl = new() { NoCache = true };
+            using var resp = await Http.SendAsync(req);
+            resp.EnsureSuccessStatusCode();
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
             r = Parse(doc.RootElement);
         }
         catch (HttpRequestException e) when (e.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.TooManyRequests)

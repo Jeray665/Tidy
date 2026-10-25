@@ -1,0 +1,96 @@
+<UserControl x:Class="Tidy.Views.FileTable"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:local="clr-namespace:Tidy">
+    <!-- the file list of Almacenamiento (disk analysis, downloads, duplicates): type chips, size filter, sortable columns,
+         and the total of what's ticked. Each tab puts its own buttons in Actions. -->
+    <UserControl.Resources>
+        <DataTemplate x:Key="Row">
+            <Grid ToolTip="{Binding LockReason}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="26" />
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="100" />
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <CheckBox IsChecked="{Binding Selected, Mode=TwoWay}" IsEnabled="{Binding CanSelect}" VerticalAlignment="Center" MinWidth="0" />
+                <ui:SymbolIcon Grid.Column="1" Symbol="{Binding KindIcon}" FontSize="18" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Grid.Column="2" Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="13" VerticalAlignment="Center" Margin="6,0,8,0" ToolTip="{Binding Name}" />
+                <TextBlock Grid.Column="3" Text="{Binding DateText}" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                <TextBlock Grid.Column="4" Text="{Binding SizeText}" VerticalAlignment="Center" HorizontalAlignment="Right" FontWeight="SemiBold" Margin="0,0,6,0" />
+                <TextBlock Grid.Column="5" Text="{Binding Folder}" Style="{StaticResource Muted}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="18,0,8,0" ToolTip="{Binding Path}" />
+                <ui:Button Grid.Column="6" Icon="{ui:SymbolIcon FolderOpen24}" Padding="7,5" ToolTip="Abrir ubicación" Tag="{Binding Path}" Click="Locate_Click" />
+            </Grid>
+        </DataTemplate>
+        <!-- duplicates: "3 copias de X" above each group -->
+        <DataTemplate x:Key="GroupHeader">
+            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="0,8,0,0" />
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <Grid Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <WrapPanel x:Name="KindChips" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Tamaño" FontWeight="SemiBold" VerticalAlignment="Center" Margin="12,0,8,0" />
+                <ComboBox x:Name="MinSize" Width="170" SelectedIndex="0" SelectionChanged="Filter_Changed">
+                    <ComboBoxItem Content="Cualquier tamaño" Tag="0" />
+                    <ComboBoxItem Content="Más de 10 MB" Tag="10485760" />
+                    <ComboBoxItem Content="Más de 100 MB" Tag="104857600" />
+                    <ComboBoxItem Content="Más de 1 GB" Tag="1073741824" />
+                </ComboBox>
+            </StackPanel>
+        </Grid>
+        <!-- column headers: click to sort, again to reverse -->
+        <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Padding="0,0,0,4" Margin="0,0,0,2">
+            <Grid x:Name="Headers">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="70" />
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="100" />
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="44" />
+                </Grid.ColumnDefinitions>
+                <ui:Button Grid.Column="1" Content="Nombre" Tag="name" Click="Sort_Click" Appearance="Transparent" BorderThickness="0" Padding="6,4" Margin="5,0,0,0" />
+                <ui:Button Grid.Column="2" Content="Modificado" Tag="date" Click="Sort_Click" Appearance="Transparent" BorderThickness="0" Padding="6,4" Margin="6,0,0,0" />
+                <ui:Button Grid.Column="3" Content="Tamaño" Tag="size" Click="Sort_Click" Appearance="Transparent" BorderThickness="0" Padding="6,4" HorizontalAlignment="Right" Margin="0,0,-6,0" />
+                <ui:Button Grid.Column="4" Content="Ubicación" Tag="path" Click="Sort_Click" Appearance="Transparent" BorderThickness="0" Padding="6,4" Margin="18,0,0,0" />
+            </Grid>
+        </Border>
+        <ListBox x:Name="List" Style="{StaticResource RowList}" local:Ui.FillBelow="52">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <ContentControl Content="{Binding}" Focusable="False">
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl">
+                                <Setter Property="ContentTemplate" Value="{StaticResource Row}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsHeader}" Value="True">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource GroupHeader}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentControl.Style>
+                    </ContentControl>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+        <Grid Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="Sel" Style="{StaticResource Muted}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
+            <ContentPresenter x:Name="ActionsHost" Grid.Column="1" IsEnabled="False" Content="{Binding Actions, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+        </Grid>
+    </StackPanel>
+</UserControl>

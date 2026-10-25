@@ -35,6 +35,11 @@ public static class Theme
             default: ApplicationThemeManager.ApplySystemTheme(true); break;
         }
         Application.Current.Resources["AppLogo"] = Image($"{LogoName}.png");
+        // a clicked row in the lists: the hover's grey, a bit stronger, instead of Windows' accent color
+        var res = Application.Current.Resources;
+        var text = (System.Windows.Media.Color)res["TextFillColorPrimary"];
+        res["ListBoxItemSelectedBackgroundThemeBrush"] = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x1C, text.R, text.G, text.B));
+        res["ListBoxItemSelectedForegroundThemeBrush"] = res["TextFillColorPrimaryBrush"];
         foreach (var w in _windows) Paint(w);
         Changed?.Invoke();
     }

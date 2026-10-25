@@ -51,13 +51,6 @@ public partial class StoragePage : Page
 {
     CancellationTokenSource? _cts;
     readonly List<string> _dupFolders = [.. Storage.PersonalFolders()];
-    // the disk analysis table: every file found, then filtered by type and size and sorted by a column
-    List<FileRow> _large = [];
-    FileKind? _kind;
-    string _sort = "size";
-    bool _desc = true;
-    static readonly (FileKind Kind, string Name)[] KindNames =
-        [(FileKind.Document, "Documentos"), (FileKind.Image, "Imágenes"), (FileKind.Archive, "Comprimidos"), (FileKind.Video, "Vídeos"), (FileKind.Audio, "Audio"), (FileKind.Other, "Otros")];
 
     public StoragePage()
     {
@@ -80,7 +73,7 @@ public partial class StoragePage : Page
         var dl = await Task.Run(Storage.DownloadedFiles);
         DownloadsCardText.Text = $"{Store.FormatBytes(dl.Sum(f => f.Size))} en {CategoryRow.Files(dl.Count)}";
         DownloadsInfo.Text = $"{CategoryRow.Files(dl.Count)} · {Store.FormatBytes(dl.Sum(f => f.Size))} en {Storage.Downloads}";
-        DownloadList.ItemsSource = dl.Select(f => new FileRow(f)).ToList();
+        DownloadTable.Rows = dl.Select(f => new FileRow(f)).ToList();
     }
 
     async Task ShowDiskHealth()
@@ -113,7 +106,6 @@ public partial class StoragePage : Page
     void DeepClean_Click(object sender, RoutedEventArgs e) => MainWindow.Current?.Navigate(typeof(CleanerPage));
     void ShowDownloads_Click(object sender, RoutedEventArgs e) => Tabs.SelectedItem = DownloadsTab;
     void StorageSense_Click(object sender, RoutedEventArgs e) => Ui.OpenSettings("ms-settings:storagesense");
-    void Locate_Click(object sender, RoutedEventArgs e) => Ui.ShowInFolder((string)((FrameworkElement)sender).Tag);
 
     void FolderList_DoubleClick(object sender, MouseButtonEventArgs e)
     {
@@ -132,9 +124,7 @@ public partial class StoragePage : Page
         {
             var r = await Task.Run(() => Storage.Scan(root, 10L << 20, progress, _cts.Token));
             FolderList.ItemsSource = r.Folders.Take(80).Select(f => new FolderRow(f, r.Bytes)).ToList();
-            _large = r.Large.Select(f => new FileRow(f)).ToList();
-            foreach (var row in _large) row.PropertyChanged += (_, _) => ShowSelection();
-            ShowFiles();
+            LargeTable.Rows = r.Large.Select(f => new FileRow(f)).ToList();
             ScanStatus.Text = $"{r.Files:N0} archivos analizados · {Store.FormatBytes(r.Bytes)} en {root}. Las carpetas del sistema a las que no hay acceso no se cuentan.";
             ScanResults.Visibility = Visibility.Visible;
         }
@@ -148,66 +138,11 @@ public partial class StoragePage : Page
         }
     }
 
-    // ---------- disk analysis table ----------
-    void ShowFiles()
-    {
-        var min = long.Parse((string)((ComboBoxItem)MinSize.SelectedItem).Tag);
-        var big = _large.Where(r => r.File.Size >= min).ToList();
-        KindChips.Children.Clear();
-        KindChips.Children.Add(Chip("Todo", big.Count, null));
-        foreach (var (kind, name) in KindNames)
-            if (big.Count(r => r.Kind == kind) is > 0 and var n) KindChips.Children.Add(Chip(name, n, kind));
-        IEnumerable<FileRow> rows = big.Where(r => _kind == null || r.Kind == _kind);
-        rows = _sort switch
-        {
-            "name" => _desc ? rows.OrderByDescending(r => r.Name, StringComparer.CurrentCultureIgnoreCase) : rows.OrderBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase),
-            "date" => _desc ? rows.OrderByDescending(r => r.File.Modified) : rows.OrderBy(r => r.File.Modified),
-            "path" => _desc ? rows.OrderByDescending(r => r.Path, StringComparer.OrdinalIgnoreCase) : rows.OrderBy(r => r.Path, StringComparer.OrdinalIgnoreCase),
-            _ => _desc ? rows.OrderByDescending(r => r.File.Size) : rows.OrderBy(r => r.File.Size),
-        };
-        LargeList.ItemsSource = rows.ToList();
-        foreach (Wpf.Ui.Controls.Button b in Headers.Children)
-            b.Icon = (string)b.Tag == _sort ? new SymbolIcon(_desc ? SymbolRegular.ArrowDown16 : SymbolRegular.ArrowUp16) : null;
-        ShowSelection();
-    }
-
-    UIElement Chip(string name, int count, FileKind? kind)
-    {
-        var label = new StackPanel { Orientation = Orientation.Horizontal };
-        label.Children.Add(new System.Windows.Controls.TextBlock { Text = name });
-        label.Children.Add(new System.Windows.Controls.TextBlock { Text = $"{count:N0}", Margin = new Thickness(6, 0, 0, 0), Opacity = 0.7 });
-        var b = new Wpf.Ui.Controls.Button
-        {
-            Content = label, Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 6, 6),
-            Appearance = _kind == kind ? ControlAppearance.Primary : ControlAppearance.Secondary,
-        };
-        b.Click += (_, _) => { _kind = kind; ShowFiles(); };
-        return b;
-    }
-
-    void FileFilter_Changed(object sender, SelectionChangedEventArgs e) { if (IsLoaded) ShowFiles(); }
-
-    void Sort_Click(object sender, RoutedEventArgs e)
-    {
-        var by = (string)((FrameworkElement)sender).Tag;
-        _desc = by == _sort ? !_desc : by is "size" or "date";
-        _sort = by;
-        ShowFiles();
-    }
-
-    // counts every ticked file, also those hidden by a filter: the confirmation lists them all anyway
-    void ShowSelection()
-    {
-        var chosen = _large.Where(r => r.Selected).ToList();
-        LargeSel.Text = chosen.Count == 0
-            ? "Marca archivos para moverlos o enviarlos a la Papelera. Los de Windows, programas y juegos no se pueden marcar."
-            : $"{CategoryRow.Files(chosen.Count)} marcados · {Store.FormatBytes(chosen.Sum(r => r.File.Size))} en total";
-        MoveBtn.IsEnabled = LargeRecycle.IsEnabled = chosen.Count > 0;
-    }
-
+    // ---------- move ----------
     async void Move_Click(object sender, RoutedEventArgs e)
     {
-        var chosen = _large.Where(r => r.Selected).ToList();
+        var table = (FileTable)FindName((string)((FrameworkElement)sender).Tag);
+        var chosen = table.Chosen;
         if (chosen.Count == 0) return;
         var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "Carpeta a la que mover los archivos" };
         if (dlg.ShowDialog() != true) return;
@@ -226,33 +161,33 @@ public partial class StoragePage : Page
             ItemsSource = chosen.Select(r => new CleanItem { Path = r.Path, Display = r.Path, Size = r.File.Size }).ToList() });
         if (!await Ui.Confirm($"¿Mover {CategoryRow.Files(chosen.Count)} ({Store.FormatBytes(total)})?", panel, "Mover")) return;
 
-        MoveBtn.IsEnabled = LargeRecycle.IsEnabled = false;
+        table.IsEnabled = false;
         try
         {
-            var (moved, skipped) = await Task.Run(() => Storage.Move(chosen.Select(r => r.File), dest, new Progress<string>(s => LargeSel.Text = s)));
+            var (moved, skipped) = await Task.Run(() => Storage.Move(chosen.Select(r => r.File), dest, new Progress<string>(s => table.Status = s)));
             Ui.Toast("Archivos movidos", $"{CategoryRow.Files(moved)} en {dest}." + (skipped > 0 ? $" {skipped} no (en uso, protegidos o ya no estaban)." : ""),
                 skipped > 0 ? ControlAppearance.Caution : ControlAppearance.Success);
         }
         catch (Exception ex) { Ui.Toast("No se pudo mover", ex.Message, ControlAppearance.Danger); }
-        _large = _large.Where(r => File.Exists(r.Path)).ToList();
-        ShowFiles();
+        finally { table.IsEnabled = true; }
+        table.Prune();
         await Init();
     }
 
     void SelectOldInstallers_Click(object sender, RoutedEventArgs e)
     {
         string[] kinds = [".exe", ".msi", ".zip", ".rar", ".7z", ".iso"];
-        foreach (FileRow r in DownloadList.Items)
+        foreach (var r in DownloadTable.Rows)
             r.Selected = kinds.Contains(System.IO.Path.GetExtension(r.Path).ToLowerInvariant()) && r.File.Modified < DateTime.Now.AddDays(-30);
     }
 
     void UnselectDownloads_Click(object sender, RoutedEventArgs e)
     {
-        foreach (FileRow r in DownloadList.Items) r.Selected = false;
+        foreach (var r in DownloadTable.Rows) r.Selected = false;
     }
 
     // ---------- duplicates ----------
-    void UpdateDupFolders() => DupFolders.Text = "Carpetas: " + string.Join("  ·  ", _dupFolders);
+    void UpdateDupFolders() => DupFolders.Text = $"Carpetas: {string.Join("  ·  ", _dupFolders)}";
 
     void AddDupFolder_Click(object sender, RoutedEventArgs e)
     {
@@ -284,8 +219,8 @@ public partial class StoragePage : Page
                 // keep the oldest, tick the rest
                 rows.AddRange(grp.Files.Select((f, i) => new FileRow(f) { Group = g, Selected = i > 0 }));
             }
-            DupList.ItemsSource = rows;
-            DupList.Visibility = DupRecycle.Visibility = rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            DupTable.Rows = rows;
+            DupTable.Visibility = rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
             var waste = groups.Sum(x => x.Size * (x.Files.Count - 1));
             DupStatus.Text = groups.Count == 0 ? "No hay duplicados." : $"{groups.Count} grupos · {Store.FormatBytes(waste)} en copias repetidas";
         }
@@ -297,14 +232,13 @@ public partial class StoragePage : Page
     // ---------- recycle ----------
     async void Recycle_Click(object sender, RoutedEventArgs e)
     {
-        var list = (ListBox)FindName((string)((FrameworkElement)sender).Tag);
-        var rows = list == LargeList ? _large : list.Items.Cast<FileRow>().ToList();
-        var chosen = rows.Where(r => r.Selected && !r.IsHeader).ToList();
+        var table = (FileTable)FindName((string)((FrameworkElement)sender).Tag);
+        var chosen = table.Chosen;
         if (chosen.Count == 0) { Ui.Toast("Marca algún archivo", "Selecciona los archivos que quieres enviar a la Papelera.", ControlAppearance.Caution); return; }
-        if (list == DupList)
+        if (table == DupTable)
         {
             // never every copy of a group
-            var all = rows.Where(r => !r.IsHeader).GroupBy(r => r.Group).FirstOrDefault(gr => gr.All(r => r.Selected));
+            var all = table.Rows.Where(r => !r.IsHeader).GroupBy(r => r.Group).FirstOrDefault(gr => gr.All(r => r.Selected));
             if (all != null) { Ui.Toast("Deja al menos una copia", $"Has marcado todas las copias de \"{all.First().Name}\". Desmarca la que quieras conservar.", ControlAppearance.Caution); return; }
         }
         var total = chosen.Sum(r => r.File.Size);
@@ -316,8 +250,7 @@ public partial class StoragePage : Page
         var (recycled, skipped) = await Task.Run(() => Storage.Recycle(chosen.Select(r => r.File).ToList()));
         Ui.Toast("Enviado a la Papelera", $"{CategoryRow.Files(recycled)} en la Papelera." + (skipped > 0 ? $" {skipped} no (en uso, protegidos o ya no estaban)." : ""),
             skipped > 0 ? ControlAppearance.Caution : ControlAppearance.Success);
-        if (list == LargeList) { _large = _large.Where(r => File.Exists(r.Path)).ToList(); ShowFiles(); }
-        else list.ItemsSource = rows.Where(r => r.IsHeader || File.Exists(r.Path)).ToList();
+        table.Prune();
         await Init();
     }
 }
