@@ -2,6 +2,8 @@
 
 Optimizador seguro para Windows 11: limpieza, optimizaciones, drivers, apps, red, seguridad y modo juego, en español.
 
+![Tidy: tu PC, en plena forma. Sin romper nada.](docs/img/hero.jpg)
+
 **Descarga:** la última versión está en [Releases](../../releases/latest).
 
 - **Tidy-Setup.exe**: lo instala en Archivos de programa, con acceso en el menú Inicio y desinstalación desde Configuración > Aplicaciones. Se actualiza solo desde la app (con comprobación de huella SHA-256).
@@ -18,9 +20,17 @@ Optimizador seguro para Windows 11: limpieza, optimizaciones, drivers, apps, red
 - **Seguridad:** revisión de solo lectura (antivirus, firewall, UAC, Secure Boot, TPM, discos…).
 - **Historial:** todo lo que hace Tidy, con botón para deshacer, y comparación antes/después.
 
+![Limpieza, optimizaciones y rendimiento](docs/img/funciones.jpg)
+
+![Las secciones de Tidy: servicios, almacenamiento, inicio de Windows y hardware](docs/img/secciones.jpg)
+
+![Tema claro y oscuro](docs/img/temas.jpg)
+
 ## Lo que Tidy no hace a propósito
 
 No desactiva Defender, el firewall, el UAC, SmartScreen, Windows Update ni las protecciones contra Spectre/Meltdown. Ninguna optimización baja la seguridad del PC.
+
+![Optimiza sin miedo: todo se deshace](docs/img/seguro.jpg)
 
 ## Requisitos
 
