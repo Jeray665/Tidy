@@ -101,7 +101,7 @@ public static class Drivers
                 NewDate = date, Size = Store.FormatBytes((long)(decimal)u.MaxDownloadSize), WuUpdate = u,
             });
         }
-        Store.Log($"Drivers: Windows Update ofrece {list.Count} actualizaciones.");
+        Store.Log($"Drivers: Windows Update offers {list.Count} updates.");
         return list;
     }
 
@@ -128,7 +128,7 @@ public static class Drivers
         dynamic inst = session.CreateUpdateInstaller();
         inst.Updates = coll;
         dynamic r = inst.Install();
-        Store.Log($"Drivers: instalación Windows Update -> ResultCode {(int)r.ResultCode}, reinicio {(bool)r.RebootRequired}");
+        Store.Log($"Drivers: Windows Update install -> ResultCode {(int)r.ResultCode}, reboot {(bool)r.RebootRequired}");
         return (bool)r.RebootRequired;
     }
 
@@ -156,7 +156,7 @@ public static class Drivers
         if (!m.Success)
         {
             var at = xml.IndexOf("RTX", StringComparison.Ordinal);
-            Store.Log($"Drivers: GPU '{name}' no encontrada en el catálogo de NVIDIA. ({xml.Length} bytes) {(at >= 0 ? xml.Substring(at, Math.Min(150, xml.Length - at)) : xml[..Math.Min(150, xml.Length)])}");
+            Store.Log($"Drivers: GPU '{name}' not found in the NVIDIA catalog. ({xml.Length} bytes) {(at >= 0 ? xml.Substring(at, Math.Min(150, xml.Length - at)) : xml[..Math.Min(150, xml.Length)])}");
             return null;
         }
         string psid = m.Groups[1].Value, pfid = m.Groups[2].Value;
@@ -167,7 +167,7 @@ public static class Drivers
         var latest = info.GetProperty("Version").GetString()!;
         var url = info.GetProperty("DownloadURL").GetString()!;
         DateTime? date = DateTime.TryParse(info.GetProperty("ReleaseDateTime").GetString()?[4..], System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d : null;
-        Store.Log($"Drivers: NVIDIA {name} instalado {current}, último WHQL {latest}");
+        Store.Log($"Drivers: NVIDIA {name} installed {current}, latest WHQL {latest}");
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         if (decimal.Parse(latest, inv) <= decimal.Parse(current, inv)) return null;
         return new DriverUpdate
@@ -184,7 +184,7 @@ public static class Drivers
         if (uri.Scheme != "https" || !uri.Host.EndsWith(".download.nvidia.com", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException($"URL de descarga no oficial rechazada: {uri.Host}");
         // admin-only folder (Program Files): nothing running as the normal user can swap the file after we verify it
-        var dir = Path.Combine(Autostart.InstallDir, "descargas");
+        var dir = Store.DownloadsDir;
         Directory.CreateDirectory(dir);
         var path = Path.Combine(dir, Path.GetFileName(uri.LocalPath));
 
@@ -206,10 +206,10 @@ public static class Drivers
         if (!IsSignedBy(path, "NVIDIA Corporation"))
         {
             File.Delete(path);
-            Store.Log($"Drivers: ¡firma NO válida en {path}! Descarga borrada.");
+            Store.Log($"Drivers: INVALID signature on {path}! Download deleted.");
             throw new InvalidOperationException("El instalador descargado no tiene una firma válida de NVIDIA. Se ha borrado por seguridad.");
         }
-        Store.Log($"Drivers: {path} descargado y verificado (firma NVIDIA Corporation válida).");
+        Store.Log($"Drivers: {path} downloaded and verified (valid NVIDIA Corporation signature).");
         return path;
     }
 
@@ -219,7 +219,7 @@ public static class Drivers
         using var guard = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         if (!IsSignedBy(path, organization)) throw new InvalidOperationException("La firma del instalador ya no es válida. No se ejecuta.");
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(path)! });
-        Store.Log($"Drivers: lanzado instalador verificado {path}");
+        Store.Log($"Drivers: started verified installer {path}");
     }
 
     public static bool IsSignedBy(string path, string organization)

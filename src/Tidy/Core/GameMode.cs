@@ -160,7 +160,7 @@ public static class GameMode
                         try { if (p.PriorityClass == ProcessPriorityClass.Normal) { _lowered[p.Id] = p.PriorityClass; p.PriorityClass = ProcessPriorityClass.BelowNormal; } }
                         catch { }
         }
-        Store.Log($"Modo juego: empieza ({name}): {string.Join(", ", done)}");
+        Store.Log($"Game mode: started ({name}): {string.Join(", ", done)}");
         Changed?.Invoke(Current);
     }
 
@@ -176,7 +176,7 @@ public static class GameMode
         if (name != null)
         {
             var mins = (int)(DateTime.Now - Since).TotalMinutes;
-            Store.Log($"Modo juego: termina ({name}, {mins} min). Todo vuelve a como estaba.");
+            Store.Log($"Game mode: ended ({name}, {mins} min). Everything restored.");
             History.Add(HistoryKind.Game, $"Modo juego: {name}", $"{mins} min · al cerrar el juego todo volvió a como estaba");
             Changed?.Invoke(null);
         }

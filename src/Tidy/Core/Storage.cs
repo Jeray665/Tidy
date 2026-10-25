@@ -144,8 +144,8 @@ public static class Storage
         if (ok.Count == 0) return (0, skipped);
         Native.Recycle(ok.Select(f => f.Path));
         var gone = ok.Count(f => !File.Exists(f.Path));
-        Store.Log($"Almacenamiento: {gone} archivos enviados a la Papelera ({Store.FormatBytes(ok.Where(f => !File.Exists(f.Path)).Sum(f => f.Size))})");
-        foreach (var f in ok) Store.Log($"  papelera: {f.Path}");
+        Store.Log($"Storage: {gone} files sent to the Recycle Bin ({Store.FormatBytes(ok.Where(f => !File.Exists(f.Path)).Sum(f => f.Size))})");
+        foreach (var f in ok) Store.Log($"  recycled: {f.Path}");
         if (gone > 0) History.Add(HistoryKind.Files, $"{gone} archivos a la Papelera", Store.FormatBytes(ok.Where(f => !File.Exists(f.Path)).Sum(f => f.Size)), "recycle");
         return (gone, skipped + ok.Count - gone);
     }
@@ -223,7 +223,7 @@ public static class Processes
                 if (IsCritical(p)) continue;
                 try { p.Kill(); n++; } catch (Exception e) { err = e.Message; }
             }
-        Store.Log($"Procesos: cerrado {info.Name} ({n} instancias)");
+        Store.Log($"Processes: closed {info.Name} ({n} instances)");
         return (n, err);
     }
 
@@ -232,7 +232,7 @@ public static class Processes
         if (info.Critical || priority == ProcessPriorityClass.RealTime) return false;
         var ok = true;
         foreach (var p in Instances(info)) using (p) try { p.PriorityClass = priority; } catch { ok = false; }
-        Store.Log($"Procesos: prioridad de {info.Name} -> {priority}");
+        Store.Log($"Processes: {info.Name} priority -> {priority}");
         return ok;
     }
 

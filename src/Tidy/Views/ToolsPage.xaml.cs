@@ -34,7 +34,7 @@ public partial class ToolsPage : Page
             var card = new CardAction { Icon = Ui.Icon(t.Icon, 22), Content = body, Margin = new Thickness(0, 0, 8, 8), Padding = new Thickness(14, 12, 14, 12), ToolTip = t.Description };
             card.Click += (_, _) =>
             {
-                try { Repairs.Launch(t); Store.Log($"Herramienta abierta: {t.Name}"); }
+                try { Repairs.Launch(t); Store.Log($"Tool opened: {t.Name}"); }
                 catch (Exception ex) { Ui.Toast("No se pudo abrir", ex.Message, ControlAppearance.Danger); }
             };
             ToolGrid.Children.Add(card);
@@ -83,7 +83,7 @@ public partial class ToolsPage : Page
                     if (Processes.IsCritical(p)) { Ui.Toast("Proceso de Windows", "Es un proceso del sistema: reinicia el PC para liberar el archivo.", ControlAppearance.Caution); return; }
                     if (!await Ui.Confirm($"¿Cerrar {app}?", "Se cerrará sin guardar. Si tiene trabajo pendiente, guárdalo antes desde el propio programa.", "Cerrar", danger: true)) return;
                     p.Kill();
-                    Store.Log($"Herramientas: cerrado {app} ({pid}) que bloqueaba {dlg.FileName}");
+                    Store.Log($"Tools: closed {app} ({pid}) that was locking {dlg.FileName}");
                     Ui.Toast("Programa cerrado", "El archivo ya debería estar libre.");
                 }
                 catch (Exception ex) { Ui.Toast("No se pudo cerrar", ex.Message, ControlAppearance.Danger); }

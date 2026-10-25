@@ -122,7 +122,7 @@ public static class Services
         }
         var arg = mode switch { StartMode.Auto => "auto", StartMode.Delayed => "delayed-auto", StartMode.Manual => "demand", _ => "disabled" };
         var (code, output) = Store.Run("sc.exe", $"config \"{name}\" start= {arg}");
-        Store.Log($"Servicio {name}: inicio -> {arg}: {(code == 0 ? "OK" : output.Trim())}");
+        Store.Log($"Service {name}: start type -> {arg}: {(code == 0 ? "OK" : output.Trim())}");
         if (code == 0) History.Add(HistoryKind.Service, $"Servicio {name}: {mode switch { StartMode.Auto => "automático", StartMode.Delayed => "automático (retrasado)", StartMode.Manual => "manual", _ => "deshabilitado" }}", "", $"service:{name}");
         return code == 0 ? (true, "") : (false, output.Trim());
     }
@@ -135,10 +135,10 @@ public static class Services
             using var sc = new ServiceController(name);
             if (run) { sc.Start(); sc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(20)); }
             else { sc.Stop(); sc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(20)); }
-            Store.Log($"Servicio {name}: {(run ? "iniciado" : "detenido")}");
+            Store.Log($"Service {name}: {(run ? "started" : "stopped")}");
             return (true, "");
         }
-        catch (Exception e) { Store.Log($"Servicio {name}: {(run ? "iniciar" : "detener")} falló: {e.Message}"); return (false, e.InnerException?.Message ?? e.Message); }
+        catch (Exception e) { Store.Log($"Service {name}: {(run ? "start" : "stop")} failed: {e.Message}"); return (false, e.InnerException?.Message ?? e.Message); }
     }
 
     public static string[] Dependents(string name)
@@ -165,7 +165,7 @@ public static class Services
         var backup = LoadBackup();
         if (!backup.TryGetValue(name, out var s)) return false;
         // the backup is user-writable: only accept real startup values, for services that still pass validation
-        if (s.Start is < 2 or > 4 || !Validate(name, out _)) { Store.Log($"Servicio {name}: copia de seguridad no válida, ignorada"); return false; }
+        if (s.Start is < 2 or > 4 || !Validate(name, out _)) { Store.Log($"Service {name}: invalid backup, ignored"); return false; }
         var mode = s.Start switch { 2 => s.Delayed == 1 ? StartMode.Delayed : StartMode.Auto, 3 => StartMode.Manual, _ => StartMode.Disabled };
         var ok = SetMode(name, mode).Ok;
         if (ok) { backup.Remove(name); Store.WriteJson(BackupFile, backup, secure: true); }

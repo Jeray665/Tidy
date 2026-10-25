@@ -40,7 +40,7 @@ public static class SecurityStatus
             try { return c(); }
             catch (Exception e)
             {
-                Store.Log($"Seguridad: {c.Method.Name}: {e.Message}");
+                Store.Log($"Security: {c.Method.Name}: {e.Message}");
                 var title = c.Method.Name switch { "Tpm" => "Chip de seguridad (TPM)", "BitLocker" => "Cifrado del disco (BitLocker)", "Antivirus" => "Antivirus", "Updates" => "Windows Update", var n => n };
                 var denied = e is UnauthorizedAccessException || e is ManagementException { ErrorCode: ManagementStatus.AccessDenied };
                 return new SecurityCheck(c.Method.Name, title, CheckState.Unknown, denied ? "Windows solo deja leerlo con permisos de administrador." : "No se pudo comprobar.", denied ? "" : e.Message);
@@ -235,7 +235,7 @@ public static class SecurityStatus
                 }
             }
         }
-        catch (Exception e) { Store.Log($"Salud de discos: {e.Message}"); }
+        catch (Exception e) { Store.Log($"Disk health: {e.Message}"); }
         _disksAt = DateTime.Now;
         return _disks = list;
     }

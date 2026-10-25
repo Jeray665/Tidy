@@ -95,12 +95,12 @@ public partial class BackupsPage : Page
                 })));
 
         // cleaner lists
-        var lists = Path.Combine(Store.Dir, "limpiezas");
+        var lists = Store.CleanupsDir;
         Sections.Children.Add(new TextBlock { Text = "Historial", Style = (Style)FindResource("Section") });
         Sections.Children.Add(Row("Broom24", "Listas de archivos limpiados", "Cada limpieza guarda la lista exacta de lo que borró (temporales y cachés: no se pueden restaurar porque Windows y las apps los regeneran).",
             ("Abrir carpeta", () => { Directory.CreateDirectory(lists); Ui.OpenFolder(lists); return Task.CompletedTask; }), null));
         Sections.Children.Add(Row("DocumentText24", "Registro de actividad", "Todo lo que Tidy ha hecho, con fecha y hora.",
-            ("Abrir", () => { if (!File.Exists(Store.LogPath)) Store.Log("Registro creado."); Ui.OpenText(Store.LogPath); return Task.CompletedTask; }), null));
+            ("Abrir", () => { if (!File.Exists(Store.LogPath)) Store.Log("Log created."); Ui.OpenText(Store.LogPath); return Task.CompletedTask; }), null));
     }
 
     void Section(string title, string icon, string detail, (string, Func<Task>)? action)

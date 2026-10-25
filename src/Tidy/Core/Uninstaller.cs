@@ -66,7 +66,7 @@ public class Quarantine
 /// they're moved to a quarantine (files) or exported (registry, services, tasks) so everything can be put back.</summary>
 public static class Uninstaller
 {
-    public static string QuarantineRoot => Path.Combine(Store.SecureDir, "cuarentena");
+    public static string QuarantineRoot => Path.Combine(Store.SecureDir, "quarantine");
     const string UninstallPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
     static string PowerShell => Path.Combine(Environment.SystemDirectory, @"WindowsPowerShell\v1.0\powershell.exe");
     static readonly Regex MsiGuid = new(@"\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}");
@@ -137,7 +137,7 @@ public static class Uninstaller
                 };
             }).Where(p => SafePackage.IsMatch(p.PackageFullName!)).ToList();
         }
-        catch (Exception e) { Store.Log($"Apps de la Store ilegibles: {e.Message}"); return []; }
+        catch (Exception e) { Store.Log($"Store apps unreadable: {e.Message}"); return []; }
     }
 
     static (string?, string?) Manifest(string dir)
@@ -156,7 +156,7 @@ public static class Uninstaller
     /// <summary>Runs the vendor uninstaller and waits for it. Returns false if it couldn't be started.</summary>
     public static async Task<(bool Ok, string Message)> RunUninstaller(InstalledProgram p)
     {
-        Store.Log($"Desinstalar: {p.Name} {p.Version} ({p.RegKey ?? p.PackageFullName})");
+        Store.Log($"Uninstall: {p.Name} {p.Version} ({p.RegKey ?? p.PackageFullName})");
         if (p.IsStore)
         {
             var (code, output) = await Task.Run(() => Store.Run(PowerShell, $"-NoProfile -NonInteractive -Command \"Remove-AppxPackage -Package '{p.PackageFullName}'\""));
@@ -170,7 +170,7 @@ public static class Uninstaller
         {
             using var proc = Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe)! })!;
             await proc.WaitForExitAsync();
-            Store.Log($"Desinstalador de {p.Name} terminó con código {proc.ExitCode}");
+            Store.Log($"Uninstaller of {p.Name} exited with code {proc.ExitCode}");
             return (true, "");
         }
         catch (Exception e) { return (false, e.Message); }
@@ -473,13 +473,13 @@ public static class Uninstaller
                 switch (l.Kind)
                 {
                     case LeftoverKind.Folder or LeftoverKind.File:
-                        if (IsProtectedPath(l.Target) || (l.Kind == LeftoverKind.Folder && IsLink(l.Target))) { Store.Log($"  BLOQUEADO (ruta protegida): {l.Target}"); continue; }
+                        if (IsProtectedPath(l.Target) || (l.Kind == LeftoverKind.Folder && IsLink(l.Target))) { Store.Log($"  BLOCKED (protected path): {l.Target}"); continue; }
                         MovePath(l.Target, stored);
                         q.Bytes += l.Size;
                         q.Items.Add(new(l.Kind, l.Target, stored));
                         break;
                     case LeftoverKind.RegKey:
-                        if (!IsAllowedKey(l.Target)) { Store.Log($"  BLOQUEADO (clave protegida): {l.Target}"); continue; }
+                        if (!IsAllowedKey(l.Target)) { Store.Log($"  BLOCKED (protected key): {l.Target}"); continue; }
                         if (Store.Run(RegExe, $"export \"{RegPath(l.Target)}\" \"{stored}.reg\" /y {RegView(l.Target)}").Exit != 0) throw new IOException("no se pudo exportar");
                         var s = Split(l.Target)!.Value;
                         s.Base.DeleteSubKeyTree(s.Sub, false);
@@ -510,12 +510,12 @@ public static class Uninstaller
                         q.Items.Add(new(l.Kind, l.Target, stored + ".xml"));
                         break;
                 }
-                Store.Log($"  a cuarentena: {l.Display}");
+                Store.Log($"  quarantined: {l.Display}");
             }
-            catch (Exception e) { Store.Log($"  NO se pudo quitar {l.Display}: {e.Message}"); }
+            catch (Exception e) { Store.Log($"  could NOT remove {l.Display}: {e.Message}"); }
         }
-        Store.WriteJson(Path.Combine("cuarentena", q.Id, "manifest.json"), q, secure: true);
-        Store.Log($"Desinstalación profunda de {app}: {q.Items.Count} elementos en cuarentena ({q.Dir})");
+        Store.WriteJson(Path.Combine("quarantine", q.Id, "manifest.json"), q, secure: true);
+        Store.Log($"Deep uninstall of {app}: {q.Items.Count} items quarantined ({q.Dir})");
         History.Add(HistoryKind.Uninstall, $"Restos de {app} a la cuarentena", $"{q.Items.Count} elementos", $"quarantine:{q.Id}");
         return q;
     }
@@ -547,9 +547,22 @@ public static class Uninstaller
     {
         if (!Directory.Exists(QuarantineRoot)) return [];
         return Directory.EnumerateDirectories(QuarantineRoot)
-            .Select(d => Store.ReadJson<Quarantine>(Path.Combine("cuarentena", Path.GetFileName(d), "manifest.json"), secure: true))
+            .Select(d => Store.ReadJson<Quarantine>(Path.Combine("quarantine", Path.GetFileName(d), "manifest.json"), secure: true))
             .Where(q => q != null && Path.GetFileName(q.Dir) == q.Id).Cast<Quarantine>()
             .OrderByDescending(q => q.Created).ToList();
+    }
+
+    /// <summary>After the quarantine folder moved (old Spanish names), point each stored path at its new place.</summary>
+    public static void RebaseQuarantines()
+    {
+        foreach (var q in Quarantines())
+        {
+            var marker = $"\\{q.Id}\\";
+            for (var n = 0; n < q.Items.Count; n++)
+                if (q.Items[n].Stored.IndexOf(marker, StringComparison.OrdinalIgnoreCase) is var at and >= 0)
+                    q.Items[n] = q.Items[n] with { Stored = Path.Combine(q.Dir, q.Items[n].Stored[(at + marker.Length)..]) };
+            Store.WriteJson(Path.Combine("quarantine", q.Id, "manifest.json"), q, secure: true);
+        }
     }
 
     /// <summary>Puts everything back where it was. Items whose original place is taken again are left in quarantine.</summary>
@@ -584,9 +597,9 @@ public static class Uninstaller
                 }
                 ok++;
             }
-            catch (Exception e) { failed++; Store.Log($"Restaurar {i.Target}: {e.Message}"); }
+            catch (Exception e) { failed++; Store.Log($"Restore {i.Target}: {e.Message}"); }
         }
-        Store.Log($"Cuarentena {q.Id} restaurada: {ok} bien, {failed} con error");
+        Store.Log($"Quarantine {q.Id} restored: {ok} ok, {failed} failed");
         if (failed == 0) Cleaner.DeleteTree(q.Dir);
         return (ok, failed);
     }
@@ -595,6 +608,6 @@ public static class Uninstaller
     {
         if (!Path.GetFullPath(q.Dir).StartsWith(QuarantineRoot + "\\", StringComparison.OrdinalIgnoreCase)) return;
         Cleaner.DeleteTree(q.Dir);
-        Store.Log($"Cuarentena {q.Id} ({q.App}) borrada definitivamente");
+        Store.Log($"Quarantine {q.Id} ({q.App}) permanently deleted");
     }
 }

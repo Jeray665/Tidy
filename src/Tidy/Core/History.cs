@@ -27,7 +27,7 @@ public static class History
                 Store.WriteJson(FileName, all, secure: true);
             }
         }
-        catch (Exception e) { Store.Log($"Historial: no se pudo guardar: {e.Message}"); } // never block the change itself
+        catch (Exception e) { Store.Log($"History: could not save: {e.Message}"); } // never block the change itself
     }
 
     public static List<HistoryEntry> All() => Store.ReadJson<List<HistoryEntry>>(FileName, secure: true) ?? [];

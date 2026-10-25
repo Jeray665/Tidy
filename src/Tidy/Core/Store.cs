@@ -28,6 +28,14 @@ public class Settings
 
     /// <summary>0 = off; otherwise remind (never clean) when this many days passed since the last cleaning.</summary>
     public int CleanReminderDays { get; set; } = 30;
+    /// <summary>"system" (follow Windows), "light" or "dark".</summary>
+    public string Theme { get; set; } = "system";
+
+    public bool AutoUpdateCheck { get; set; } = true;
+    public DateTime? LastUpdateCheck { get; set; }
+    /// <summary>Version whose "what's new" was already shown. Null on a fresh install.</summary>
+    public string? LastSeenVersion { get; set; }
+    public string? LastNotifiedVersion { get; set; }
     public DateTime? LastCleanReminder { get; set; }
 }
 
@@ -38,7 +46,10 @@ public static class Store
     public static string LogPath => Path.Combine(Dir, "tidy.log");
     /// <summary>Admin-only folder (under Program Files) for backups that an elevated Tidy later acts on: services, tasks, DNS, quarantine.
     /// A normal-user process can't tamper with them there.</summary>
-    public static string SecureDir { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Tidy", "datos");
+    public static string SecureDir { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Tidy", "data");
+    public static string CleanupsDir => Path.Combine(Dir, "cleanups");
+    /// <summary>Driver installers and updates: admin-only, so nothing can swap them between the check and the launch.</summary>
+    public static string DownloadsDir => Path.Combine(SecureDir, "downloads");
     static string SettingsPath => Path.Combine(Dir, "settings.json");
     static readonly object _lock = new();
     static readonly JsonSerializerOptions _json = new() { WriteIndented = true };
@@ -51,7 +62,40 @@ public static class Store
         Directory.CreateDirectory(Dir);
         FirstRun = !File.Exists(SettingsPath);
         try { if (!FirstRun) Settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(SettingsPath)) ?? new(); }
-        catch (Exception e) { Log($"settings.json ilegible, se usan valores por defecto: {e.Message}"); }
+        catch (Exception e) { Log($"settings.json unreadable, using defaults: {e.Message}"); }
+    }
+
+    /// <summary>1.0.0 used Spanish folder names; move them once to the English ones. Nothing is deleted, and a
+    /// folder that exists under both names is merged without overwriting anything.</summary>
+    public static void MigrateFolders()
+    {
+        var root = Path.GetDirectoryName(SecureDir)!;   // Program Files\Tidy
+        MoveDir(Path.Combine(Dir, "limpiezas"), CleanupsDir);
+        MoveDir(Path.Combine(root, "datos"), SecureDir);
+        MoveDir(Path.Combine(root, "descargas"), DownloadsDir);
+        if (MoveDir(Path.Combine(SecureDir, "cuarentena"), Uninstaller.QuarantineRoot)) Uninstaller.RebaseQuarantines();
+    }
+
+    static bool MoveDir(string from, string to)
+    {
+        try
+        {
+            if (!Directory.Exists(from)) return false;
+            if (!Directory.Exists(to)) Directory.Move(from, to);
+            else
+            {
+                foreach (var e in Directory.EnumerateFileSystemEntries(from))
+                {
+                    var dest = Path.Combine(to, Path.GetFileName(e));
+                    if (File.Exists(dest) || Directory.Exists(dest)) continue;
+                    if (Directory.Exists(e)) Directory.Move(e, dest); else File.Move(e, dest);
+                }
+                if (!Directory.EnumerateFileSystemEntries(from).Any()) Directory.Delete(from);
+            }
+            Log($"Migrated folder {from} -> {to}");
+            return true;
+        }
+        catch (Exception e) { Log($"Folder migration {from} -> {to} failed: {e.Message}"); return false; }
     }
 
     public static void Save()
@@ -63,7 +107,7 @@ public static class Store
     {
         var p = Path.Combine(secure ? SecureDir : Dir, name);
         try { return File.Exists(p) ? JsonSerializer.Deserialize<T>(File.ReadAllText(p)) : null; }
-        catch (Exception e) { Log($"{name} ilegible: {e.Message}"); return null; }
+        catch (Exception e) { Log($"{name} unreadable: {e.Message}"); return null; }
     }
 
     public static void WriteJson<T>(string name, T value, bool secure = false)

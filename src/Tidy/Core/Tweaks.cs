@@ -657,6 +657,12 @@ public static class Tweaks
         },
     ];
 
+    /// <summary>Tweaks a newer version took out of the catalog. Their definitions stay here (hidden) so whoever applied
+    /// them can still reset them from Settings: the backup alone isn't trusted to say which values to write back.</summary>
+    public static readonly List<Tweak> Retired = [];
+
+    public static Tweak? Find(string id) => All.Concat(Retired).FirstOrDefault(t => t.Id == id);
+
     /// <summary>Writing Services\X\Start for a service that isn't installed would create a broken service entry: such ops are skipped.</summary>
     static IEnumerable<RegOp> Live(Tweak t) => t.Ops.Where(op => !op.Key.StartsWith(Svc, StringComparison.OrdinalIgnoreCase) || KeyExists(op.Key));
 
@@ -684,11 +690,11 @@ public static class Tweaks
         catch (Exception e)
         {
             // never leave a tweak half-applied
-            Store.Log($"Optimización FALLÓ, se deshace: {t.Title} [{t.Id}]: {e.Message}");
+            Store.Log($"Tweak FAILED, rolled back: {t.Title} [{t.Id}]: {e.Message}");
             try { Revert(t, quiet: true); } catch { }
             throw new InvalidOperationException($"{t.Title}: {e.Message}", e);
         }
-        Store.Log($"Optimización APLICADA: {t.Title} [{t.Id}]");
+        Store.Log($"Tweak APPLIED: {t.Title} [{t.Id}]");
         History.Add(HistoryKind.Tweak, $"Activada: {t.Title}", t.Group, $"tweak:{t.Id}");
     }
 
@@ -767,7 +773,7 @@ public static class Tweaks
             {
                 // the backup lives in a user-writable folder: only ever restore the exact values this tweak owns
                 if (t.Ops.Any(o => o.Key == s.Key && o.Name == s.Name)) Restore(s);
-                else Store.Log($"Optimización: BLOQUEADO valor ajeno en la copia de seguridad: {s.Key}\\{s.Name}");
+                else Store.Log($"Tweak: BLOCKED foreign value in the backup: {s.Key}\\{s.Name}");
             }
             backup.Remove(t.Id);
             Store.WriteJson(BackupFile, backup);
@@ -777,7 +783,7 @@ public static class Tweaks
             foreach (var op in Live(t))
                 if (op.Default == null) Delete(op.Key, op.Name); else Write(op.Key, op.Name, op.Default);
         }
-        Store.Log($"Optimización DESHECHA: {t.Title} [{t.Id}]");
+        Store.Log($"Tweak REVERTED: {t.Title} [{t.Id}]");
         if (!quiet) History.Add(HistoryKind.Tweak, $"Deshecha: {t.Title}", "Valor original restaurado");
     }
 
@@ -892,7 +898,7 @@ public static class Tweaks
     {
         if (!SafeName.IsMatch(fullName) || !fullName.StartsWith(app.Package + "_")) return false;
         var (code, output) = Store.Run(PowerShell, $"-NoProfile -NonInteractive -Command \"Remove-AppxPackage -Package '{fullName}'\"");
-        Store.Log($"Bloatware: desinstalar {fullName} -> {(code == 0 ? "OK" : output.Trim())}");
+        Store.Log($"Bloatware: uninstall {fullName} -> {(code == 0 ? "OK" : output.Trim())}");
         return code == 0;
     }
 }
@@ -922,14 +928,14 @@ public static class SafetyNet
             args["EventType"] = 100;       // BEGIN_SYSTEM_CHANGE
             using var result = cls.InvokeMethod("CreateRestorePoint", args, null);
             var code = Convert.ToUInt32(result["ReturnValue"]);
-            Store.Log($"Punto de restauración '{description}' -> {code}");
+            Store.Log($"Restore point '{description}' -> {code}");
             if (code != 0) return new(false, $"Windows no pudo crear el punto de restauración (código {code}). ¿Está desactivada la Protección del sistema en C:?");
             _doneThisSession = true;
             return new(true, "Punto de restauración creado.");
         }
         catch (Exception e)
         {
-            Store.Log($"Punto de restauración falló: {e.Message}");
+            Store.Log($"Restore point failed: {e.Message}");
             return new(false, $"No se pudo crear el punto de restauración: {e.Message}");
         }
     }
@@ -951,9 +957,9 @@ public static class SafetyNet
             args["Drive"] = Path.GetPathRoot(Environment.SystemDirectory);
             using var r = cls.InvokeMethod("Enable", args, null);
             var ok = Convert.ToUInt32(r["ReturnValue"]) == 0;
-            Store.Log($"Protección del sistema activada en {args["Drive"]}: {ok}");
+            Store.Log($"System protection enabled on {args["Drive"]}: {ok}");
             return ok;
         }
-        catch (Exception e) { Store.Log($"Activar protección falló: {e.Message}"); return false; }
+        catch (Exception e) { Store.Log($"Enabling system protection failed: {e.Message}"); return false; }
     }
 }

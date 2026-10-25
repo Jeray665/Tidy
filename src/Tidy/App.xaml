@@ -13,8 +13,8 @@
             <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
             <LinearGradientBrush x:Key="BrandBrush" StartPoint="0,0" EndPoint="1,1">
-                <GradientStop Color="#16C7A0" Offset="0" />
-                <GradientStop Color="#2F6BFF" Offset="1" />
+                <GradientStop Color="#9B6BF7" Offset="0" />
+                <GradientStop Color="#6D28D9" Offset="1" />
             </LinearGradientBrush>
 
             <Style x:Key="PageTitle" TargetType="TextBlock">

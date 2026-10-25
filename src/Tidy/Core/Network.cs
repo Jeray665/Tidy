@@ -72,7 +72,7 @@ public static class Network
             : $"Set-DnsClientServerAddress -InterfaceIndex {a.Index} -ServerAddresses {string.Join(",", servers.Select(s => $"'{s}'"))}";
         var (code, output) = Store.Run(PowerShell, $"-NoProfile -NonInteractive -Command \"{cmd}\"");
         Store.Run("ipconfig.exe", "/flushdns");
-        Store.Log($"DNS {a.Name}: {(servers.Length == 0 ? "automático" : string.Join(", ", servers))} -> {(code == 0 ? "OK" : output.Trim())}");
+        Store.Log($"DNS {a.Name}: {(servers.Length == 0 ? "automatic" : string.Join(", ", servers))} -> {(code == 0 ? "OK" : output.Trim())}");
         if (code == 0) History.Add(HistoryKind.Network, $"DNS de {a.Name}: {(servers.Length == 0 ? "automático" : string.Join(", ", servers))}", "", "dns");
         return code == 0 ? (true, "") : (false, output.Trim());
     }
@@ -123,7 +123,7 @@ public static class Network
         File.WriteAllText(HostsPath, content, new UTF8Encoding(false));
         if (ro) File.SetAttributes(HostsPath, File.GetAttributes(HostsPath) | FileAttributes.ReadOnly);
         Store.Run("ipconfig.exe", "/flushdns");
-        Store.Log($"Archivo hosts guardado ({content.Length:N0} caracteres). Copia anterior: {copy}");
+        Store.Log($"Hosts file saved ({content.Length:N0} characters). Previous copy: {copy}");
         History.Add(HistoryKind.Network, "Archivo hosts modificado", $"Copia anterior: {Path.GetFileName(copy)}", File.Exists(copy) ? $"hosts:{Path.GetFileName(copy)}" : null);
         return copy;
     }
@@ -135,7 +135,7 @@ public static class Network
     {
         var a = File.GetAttributes(HostsPath);
         File.SetAttributes(HostsPath, on ? a | FileAttributes.ReadOnly : a & ~FileAttributes.ReadOnly);
-        Store.Log($"Archivo hosts {(on ? "bloqueado (solo lectura)" : "desbloqueado")}");
+        Store.Log($"Hosts file {(on ? "locked (read-only)" : "unlocked")}");
     }
 
     /// <summary>Downloads the StevenBlack list and keeps ONLY lines of the form "0.0.0.0 dominio": nothing in it can redirect a site elsewhere.</summary>
@@ -214,7 +214,7 @@ public static class Repairs
 
     public static (bool Ok, string Message) Run(Fix f)
     {
-        Store.Log($"Reparación: {f.Name}");
+        Store.Log($"Repair: {f.Name}");
         switch (f.Id)
         {
             case "flushdns": return Result(Store.Run("ipconfig.exe", "/flushdns"));
@@ -239,7 +239,7 @@ public static class Repairs
                 })
                 {
                     using var k = hive.OpenSubKey(key, true);
-                    if (k?.GetValue(name) is { } v) { Store.Log($"  quitado {hive.Name}\\{key}\\{name} = {v}"); k.DeleteValue(name, false); }
+                    if (k?.GetValue(name) is { } v) { Store.Log($"  removed {hive.Name}\\{key}\\{name} = {v}"); k.DeleteValue(name, false); }
                 }
                 return (true, "");
             case "advboot": return Result(Store.Run("shutdown.exe", "/r /o /t 5"));
@@ -255,9 +255,18 @@ public static class Repairs
             try { p.Kill(); } catch { }
     }
 
-    static void OpenConsole(string command) =>
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Sys("cmd.exe"), $"/k {command}") { UseShellExecute = false });
+    // "runas" keeps the tool elevated (no prompt when Tidy already is). Consoles go through conhost.exe
+    // so Windows Terminal, the default terminal, can't take them over in a window without admin rights.
+    static void Elevated(string exe, string args) =>
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, args)
+            { UseShellExecute = true, Verb = "runas", WorkingDirectory = Environment.SystemDirectory });
 
-    public static void Launch(Tool t) =>
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(t.Exe, t.Args) { UseShellExecute = false, WorkingDirectory = Environment.SystemDirectory });
+    static void OpenConsole(string command) => Elevated(Sys("conhost.exe"), $"\"{Sys("cmd.exe")}\" /k {command}");
+
+    public static void Launch(Tool t)
+    {
+        if (t.Exe.EndsWith("cmd.exe", StringComparison.OrdinalIgnoreCase) || t.Exe.EndsWith("powershell.exe", StringComparison.OrdinalIgnoreCase))
+            Elevated(Sys("conhost.exe"), $"\"{t.Exe}\" {t.Args}".TrimEnd());
+        else Elevated(t.Exe, t.Args);
+    }
 }

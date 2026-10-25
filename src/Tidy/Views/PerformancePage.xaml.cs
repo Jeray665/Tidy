@@ -81,7 +81,7 @@ public partial class PerformancePage : Page
     {
         Store.Settings.GameModeAuto = GameAuto.IsChecked == true;
         Store.Save();
-        Store.Log($"Modo juego automático: {(Store.Settings.GameModeAuto ? "activado" : "desactivado")}");
+        Store.Log($"Automatic game mode: {(Store.Settings.GameModeAuto ? "on" : "off")}");
         if (!Store.Settings.GameModeAuto && GameMode.Current != null) Task.Run(GameMode.Stop);
         ShowGameStatus();
     }
@@ -138,7 +138,7 @@ public partial class PerformancePage : Page
     {
         Store.Settings.AutoRam = AutoRam.IsChecked == true;
         Store.Save();
-        Store.Log($"Liberación automática de RAM: {(Store.Settings.AutoRam ? "activada" : "desactivada")}");
+        Store.Log($"Automatic RAM release: {(Store.Settings.AutoRam ? "on" : "off")}");
     }
 
     void Threshold_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)

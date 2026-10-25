@@ -54,14 +54,14 @@ public partial class DriversPage : Page
             var updates = new List<DriverUpdate>();
             StatusSub.Text = "Consultando NVIDIA…";
             try { if (await Drivers.CheckNvidia() is { } nv) updates.Add(nv); }
-            catch (Exception ex) { notes.Add("No se pudo consultar NVIDIA (¿sin conexión?)"); Store.Log($"Drivers: NVIDIA falló: {ex.Message}"); }
+            catch (Exception ex) { notes.Add("No se pudo consultar NVIDIA (¿sin conexión?)"); Store.Log($"Drivers: NVIDIA check failed: {ex.Message}"); }
 
             StatusSub.Text = "Consultando Windows Update… puede tardar un minuto.";
             try { updates.AddRange(await Task.Run(() => Drivers.SearchWindowsUpdate(inv))); }
             catch (Exception ex) when (ex is COMException or InvalidCastException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
             {
                 notes.Add("Windows Update no respondió");
-                Store.Log($"Drivers: Windows Update falló: {ex.Message}");
+                Store.Log($"Drivers: Windows Update failed: {ex.Message}");
             }
 
             _updates = updates;
@@ -142,7 +142,7 @@ public partial class DriversPage : Page
         }
         catch (Exception ex)
         {
-            Store.Log($"Drivers: error instalando: {ex}");
+            Store.Log($"Drivers: install error: {ex}");
             Ui.Toast("No se pudo completar", ex.Message, ControlAppearance.Danger);
         }
         finally

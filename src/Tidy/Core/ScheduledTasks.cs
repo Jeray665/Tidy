@@ -102,11 +102,11 @@ public static class ScheduledTasks
         try
         {
             t.Enabled = enabled;
-            Store.Log($"Tarea {path}: {(enabled ? "activada" : "desactivada")}");
+            Store.Log($"Task {path}: {(enabled ? "enabled" : "disabled")}");
             History.Add(HistoryKind.Task, $"Tarea {(enabled ? "activada" : "desactivada")}: {path[(path.LastIndexOf('\\') + 1)..]}", path, $"task:{path}");
             return (true, "");
         }
-        catch (Exception e) { Store.Log($"Tarea {path}: cambio falló: {e.Message}"); return (false, e.Message); }
+        catch (Exception e) { Store.Log($"Task {path}: change failed: {e.Message}"); return (false, e.Message); }
     }
 
     public static Dictionary<string, bool> LoadBackup() => Store.ReadJson<Dictionary<string, bool>>(BackupFile, secure: true) ?? new(StringComparer.OrdinalIgnoreCase);

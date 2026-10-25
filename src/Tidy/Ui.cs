@@ -160,6 +160,28 @@ public static class Ui
 
     public static Brush Accent => Res("AccentTextFillColorPrimaryBrush");
 
+    /// <summary>Web pages open in the user's normal (non-admin) browser through Explorer, never elevated.</summary>
+    public static void OpenUrl(string url) => OpenFolder(url);
+
+    public static List<(Version Version, List<string> Items)> Changelog()
+    {
+        using var r = new System.IO.StreamReader(Application.GetResourceStream(new Uri("pack://application:,,,/Assets/CHANGELOG.md")).Stream);
+        return Core.Changelog.Parse(r.ReadToEnd());
+    }
+
+    /// <summary>Changelog sections as headed bullet lists, for the "what's new" dialogs.</summary>
+    public static FrameworkElement ChangeList(IEnumerable<(Version Version, List<string> Items)> versions)
+    {
+        var panel = new StackPanel { MaxWidth = 640 };
+        foreach (var (v, items) in versions)
+        {
+            panel.Children.Add(new TextBlock { Text = $"Versión {v}", FontWeight = FontWeights.SemiBold, FontSize = 15, Margin = new Thickness(0, panel.Children.Count == 0 ? 0 : 14, 0, 6) });
+            foreach (var i in items)
+                panel.Children.Add(new TextBlock { Text = "•  " + i, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 5), LineHeight = 20 });
+        }
+        return new ScrollViewer { Content = panel, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+    }
+
     static readonly Dictionary<string, ImageSource?> _icons = new(StringComparer.OrdinalIgnoreCase);
 
     public static ImageSource? FileIcon(string? path)

@@ -14,14 +14,21 @@ public sealed class Tray : IDisposable
     public Tray(App app)
     {
         _app = app;
-        using var stream = Application.GetResourceStream(new Uri("pack://application:,,,/Assets/tidy.ico")).Stream;
         _icon = new Forms.NotifyIcon
         {
-            Icon = new System.Drawing.Icon(stream, Forms.SystemInformation.SmallIconSize),
+            Icon = Theme.TrayIcon(),
             Text = "Tidy",
             Visible = true,
         };
         _icon.MouseClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) ToggleFlyout(); };
+        Updater.Found += r => _app.Dispatcher.BeginInvoke(() =>
+        {
+            if (Store.Settings.LastNotifiedVersion == r.Version.ToString()) return;
+            Store.Settings.LastNotifiedVersion = r.Version.ToString();
+            Store.Save();
+            Balloon(typeof(Views.SettingsPage), $"Hay una versión nueva de Tidy: {r.Version}. Haz clic para ver qué trae y actualizar.");
+        });
+        Theme.Changed += () => { var old = _icon.Icon; _icon.Icon = Theme.TrayIcon(); old?.Dispose(); };
 
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("Abrir Tidy", null, (_, _) => _app.ShowMain());
@@ -49,7 +56,7 @@ public sealed class Tray : IDisposable
 
     Type? _balloonPage;
 
-    void Balloon(Type? page, string text)
+    public void Balloon(Type? page, string text)
     {
         _balloonPage = page;
         _icon.ShowBalloonTip(5000, "Tidy", text, Forms.ToolTipIcon.None);

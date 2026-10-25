@@ -202,11 +202,11 @@ public static class Cleaner
             }
             finally { if (restart != null) StartServices(restart); }
         }
-        var logDir = Path.Combine(Store.Dir, "limpiezas");
+        var logDir = Store.CleanupsDir;
         Directory.CreateDirectory(logDir);
-        var listFile = Path.Combine(logDir, $"limpieza-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
+        var listFile = Path.Combine(logDir, $"cleanup-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
         File.WriteAllText(listFile, list.ToString(), Encoding.UTF8);
-        Store.Log($"Limpieza: {deleted} elementos borrados ({Store.FormatBytes(bytes)}), {skipped} omitidos (en uso o protegidos). Lista: {listFile}");
+        Store.Log($"Cleanup: {deleted} items deleted ({Store.FormatBytes(bytes)}), {skipped} skipped (in use or protected). List: {listFile}");
         if (deleted > 0) History.Add(HistoryKind.Clean, $"Limpieza: {Store.FormatBytes(bytes)} liberados", $"{deleted} archivos temporales (no se pueden recuperar). Lista: {Path.GetFileName(listFile)}");
         return new CleanReport(deleted, bytes, skipped, listFile);
     }
@@ -230,7 +230,7 @@ public static class Cleaner
     {
         try
         {
-            if (!IsUnder(item.Path, roots)) { Store.Log($"Limpieza: BLOQUEADO fuera de la lista blanca: {item.Path}"); return false; }
+            if (!IsUnder(item.Path, roots)) { Store.Log($"Cleanup: BLOCKED outside the allow list: {item.Path}"); return false; }
             if (item.IsDir)
             {
                 if (Directory.Exists(item.Path) && !IsReparse(item.Path)) DeleteTree(item.Path);
@@ -301,7 +301,7 @@ public static class Cleaner
         }
         catch (Exception e)
         {
-            Store.Log($"Limpieza: no se pudo parar Windows Update ({e.Message}); se omite su caché.");
+            Store.Log($"Cleanup: could not stop Windows Update ({e.Message}); its cache is skipped.");
             StartServices(stopped);
             return null;
         }
@@ -310,6 +310,6 @@ public static class Cleaner
     static void StartServices(List<ServiceController> services)
     {
         foreach (var sc in services)
-            try { sc.Start(); } catch (Exception e) { Store.Log($"Limpieza: no se pudo reiniciar {sc.ServiceName}: {e.Message}"); }
+            try { sc.Start(); } catch (Exception e) { Store.Log($"Cleanup: could not restart {sc.ServiceName}: {e.Message}"); }
     }
 }

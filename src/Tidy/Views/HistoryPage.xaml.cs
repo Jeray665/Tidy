@@ -232,7 +232,7 @@ public partial class HistoryPage : Page
                 }, UndoLabel(e.Undo))) return;
             var ok = await Task.Run(() => kind switch
             {
-                "tweak" => Tweaks.All.FirstOrDefault(t => t.Id == arg) is { } t && Do(() => Tweaks.Revert(t)),
+                "tweak" => Tweaks.Find(arg) is { } t && Do(() => Tweaks.Revert(t)),
                 "service" => Services.Restore(arg),
                 "task" => ScheduledTasks.RestoreOriginal(arg),
                 "dns" => Network.RestoreDns() > 0,

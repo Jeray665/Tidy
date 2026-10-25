@@ -9,7 +9,7 @@
         <!-- header -->
         <Grid Margin="0,0,0,14">
             <StackPanel Orientation="Horizontal">
-                <Image Source="pack://application:,,,/Assets/tidy.png" Width="22" Height="22" />
+                <Image Source="{DynamicResource AppLogo}" Width="22" Height="22" />
                 <TextBlock Text="Tidy" FontWeight="SemiBold" FontSize="15" Margin="8,0,0,0" VerticalAlignment="Center" />
             </StackPanel>
             <ui:Button HorizontalAlignment="Right" Appearance="Transparent" Padding="6" Icon="{ui:SymbolIcon Open24}" ToolTip="Abrir Tidy" Click="Open_Click" />

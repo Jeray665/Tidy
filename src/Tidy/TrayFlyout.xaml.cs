@@ -1,6 +1,5 @@
 using System.Windows;
 using Tidy.Core;
-using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
 namespace Tidy;
@@ -16,7 +15,7 @@ public partial class TrayFlyout : FluentWindow
     public TrayFlyout()
     {
         InitializeComponent();
-        SystemThemeWatcher.Watch(this);
+        Theme.Attach(this);
         Ui.LiveBind(this, Update);
         Deactivated += (_, _) => { HiddenAt = DateTime.Now; Hide(); };
         IsVisibleChanged += (_, e) => { if ((bool)e.NewValue) OnShown(); };
@@ -89,7 +88,7 @@ public partial class TrayFlyout : FluentWindow
     {
         Store.Settings.AutoRam = AutoRam.IsChecked == true;
         Store.Save();
-        Store.Log($"Liberación automática de RAM: {(Store.Settings.AutoRam ? "activada" : "desactivada")} (bandeja)");
+        Store.Log($"Automatic RAM release: {(Store.Settings.AutoRam ? "on" : "off")} (tray)");
     }
 
     void Open_Click(object sender, RoutedEventArgs e)

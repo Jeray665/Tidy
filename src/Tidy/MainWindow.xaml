@@ -16,7 +16,7 @@
 
         <ui:TitleBar Grid.Row="0" Title="Tidy" ShowMaximize="True">
             <ui:TitleBar.Icon>
-                <ui:ImageIcon Source="pack://application:,,,/Assets/tidy.png" />
+                <ui:ImageIcon Source="{DynamicResource AppLogo}" />
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 
@@ -40,6 +40,8 @@
                 <ui:NavigationViewItem Content="Hardware" TargetPageType="{x:Type v:HardwarePage}" Icon="{ui:SymbolIcon DeveloperBoard24}" />
             </ui:NavigationView.MenuItems>
             <ui:NavigationView.FooterMenuItems>
+                <ui:NavigationViewItem x:Name="UpdateItem" Content="Nueva actualización" TargetPageType="{x:Type v:SettingsPage}" Visibility="Collapsed"
+                                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Icon="{ui:SymbolIcon ArrowDownload24}" />
                 <ui:NavigationViewItem Content="Historial" TargetPageType="{x:Type v:HistoryPage}" Icon="{ui:SymbolIcon History24}" />
                 <ui:NavigationViewItem Content="Copias de seguridad" TargetPageType="{x:Type v:BackupsPage}" Icon="{ui:SymbolIcon ShieldCheckmark24}" />
                 <ui:NavigationViewItem Content="Ajustes" TargetPageType="{x:Type v:SettingsPage}" Icon="{ui:SymbolIcon Options24}" />

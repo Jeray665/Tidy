@@ -17,17 +17,9 @@ public static class Autostart
 
     public static bool Enable()
     {
-        // An elevated logon task must never point at a user-writable exe (anything could replace it and get admin silently).
-        var from = Path.GetFullPath(AppContext.BaseDirectory);
-        if (!string.Equals(from.TrimEnd('\\'), InstallDir, StringComparison.OrdinalIgnoreCase))
-        {
-            foreach (var f in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
-            {
-                var dest = Path.Combine(InstallDir, Path.GetRelativePath(from, f));
-                Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-                File.Copy(f, dest, true);
-            }
-        }
+        // An elevated logon task must never point at a user-writable exe (anything could replace it and get admin silently),
+        // so it only ever starts the installed copy in Program Files. Portable Tidy has no autostart.
+        if (Install.IsPortable || !File.Exists(InstalledExe)) { Store.Log("Autostart needs the installed version"); return false; }
         var user = SecurityElement.Escape(WindowsIdentity.GetCurrent().Name);
         var xml = $"""
             <?xml version="1.0" encoding="UTF-16"?>
@@ -50,31 +42,15 @@ public static class Autostart
         File.WriteAllText(tmp, xml, Encoding.Unicode);
         var (code, output) = Store.Run("schtasks.exe", $"/create /tn \"{TaskName}\" /xml \"{tmp}\" /f");
         File.Delete(tmp);
-        Store.Log($"Inicio automático activado ({InstalledExe}) -> {code} {output.Trim()}");
-        if (code == 0) CreateStartMenuShortcut();
+        Store.Log($"Autostart enabled ({InstalledExe}) -> {code} {output.Trim()}");
         return code == 0;
     }
 
     public static bool Disable()
     {
         var (code, output) = Store.Run("schtasks.exe", $"/delete /tn \"{TaskName}\" /f");
-        Store.Log($"Inicio automático desactivado -> {code} {output.Trim()}");
+        Store.Log($"Autostart disabled -> {code} {output.Trim()}");
         return code == 0;
-    }
-
-    static void CreateStartMenuShortcut()
-    {
-        try
-        {
-            var lnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms), "Tidy.lnk");
-            dynamic shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
-            dynamic sc = shell.CreateShortcut(lnk);
-            sc.TargetPath = InstalledExe;
-            sc.WorkingDirectory = InstallDir;
-            sc.Description = "Tidy";
-            sc.Save();
-        }
-        catch (Exception e) { Store.Log($"Acceso directo del menú Inicio falló: {e.Message}"); }
     }
 }
 
@@ -160,7 +136,7 @@ public static class StartupApps
         using var k = app.ApprovedHive.CreateSubKey(Approved + app.ApprovedKey, true);
         k.SetValue(app.ApprovedName, data, RegistryValueKind.Binary);
         app.Enabled = enabled;
-        Store.Log($"Inicio de Windows: {(enabled ? "activado" : "desactivado")} '{app.Name}' ({app.Command})");
+        Store.Log($"Windows startup: {(enabled ? "enabled" : "disabled")} '{app.Name}' ({app.Command})");
         History.Add(HistoryKind.Startup, $"Inicio de Windows: {app.Name} {(enabled ? "activado" : "desactivado")}", "", "startup");
     }
 

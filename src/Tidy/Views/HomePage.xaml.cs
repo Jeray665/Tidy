@@ -57,7 +57,7 @@ public partial class HomePage : Page
         });
 
         Machine.Text = a.Machine;
-        AutostartCard.Visibility = !a.Autostart && !Store.Settings.AutostartDismissed ? Visibility.Visible : Visibility.Collapsed;
+        AutostartCard.Visibility = !a.Autostart && !Store.Settings.AutostartDismissed && !Install.IsPortable ? Visibility.Visible : Visibility.Collapsed;
         var usedPct = 100.0 - a.Drive.AvailableFreeSpace * 100.0 / a.Drive.TotalSize;
         DiskLabel.Text = $"  Disco {a.Drive.Name.TrimEnd('\\')} · {a.Drive.AvailableFreeSpace / 1e9:0} GB libres";
         DiskText.Text = $"{usedPct:0} %";

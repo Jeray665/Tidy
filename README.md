@@ -4,6 +4,9 @@ Optimizador seguro para Windows 11: limpieza, optimizaciones, drivers, apps, red
 
 **Descarga:** la última versión está en [Releases](../../releases/latest).
 
+- **Tidy-Setup.exe**: lo instala en Archivos de programa, con acceso en el menú Inicio y desinstalación desde Configuración > Aplicaciones. Se actualiza solo desde la app (con comprobación de huella SHA-256).
+- **Tidy-Portable.exe**: sin instalar. Guarda todo en una carpeta `TidyData` junto al .exe y no deja nada más en el PC.
+
 ## Qué hace
 
 - **Limpieza y almacenamiento:** temporales, cachés, archivos grandes, descargas y duplicados. Antes de borrar te enseña la lista exacta de archivos; lo de Almacenamiento va a la Papelera.
@@ -34,3 +37,7 @@ Pruebas de seguridad (se ejecutan en una carpeta aislada):
 ```
 dotnet run --project tests/Tidy.Tests
 ```
+
+## Licencia
+
+Tidy es software libre bajo la [GNU GPL v3](LICENSE): puedes usarlo, estudiarlo, modificarlo y compartirlo, y cualquier versión modificada que se publique tiene que seguir siendo libre y con su código.

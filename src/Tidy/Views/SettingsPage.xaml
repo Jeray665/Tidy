@@ -17,6 +17,19 @@
             </ui:CardControl.Header>
             <ui:ToggleSwitch x:Name="Autostart" Click="Autostart_Click" />
         </ui:CardControl>
+        <ui:CardControl Icon="{ui:SymbolIcon DarkTheme24}" Margin="0,0,0,6">
+            <ui:CardControl.Header>
+                <StackPanel>
+                    <TextBlock Text="Tema" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Muted}" Text="Claro u oscuro, o el mismo que Windows. El icono de Tidy cambia con el tema." />
+                </StackPanel>
+            </ui:CardControl.Header>
+            <ComboBox x:Name="ThemeBox" Width="170" SelectionChanged="Theme_Changed">
+                <ComboBoxItem Content="Como Windows" Tag="system" />
+                <ComboBoxItem Content="Claro" Tag="light" />
+                <ComboBoxItem Content="Oscuro" Tag="dark" />
+            </ComboBox>
+        </ui:CardControl>
         <ui:CardControl Icon="{ui:SymbolIcon Flash24}" Margin="0,0,0,6">
             <ui:CardControl.Header>
                 <StackPanel>
@@ -54,7 +67,7 @@
                     • Punto de restauración de Windows antes de optimizaciones, drivers y desinstalar apps.<LineBreak />
                     • Drivers solo de Windows Update o nvidia.com; el instalador de NVIDIA se rechaza si su firma digital no es válida.<LineBreak />
                     • La RAM se libera vaciando solo la caché en espera: no cierra programas ni pierde datos.<LineBreak />
-                    • Sin telemetría: solo se conecta cuando tú lo pides (Windows Update y nvidia.com para drivers, winget para instalar o actualizar apps, la lista de bloqueo de anuncios).<LineBreak />
+                    • Sin telemetría: solo se conecta cuando tú lo pides (Windows Update y nvidia.com para drivers, winget para instalar o actualizar apps, la lista de bloqueo de anuncios) y una vez al día a GitHub para ver si hay versión nueva (se puede desactivar).<LineBreak />
                     • Todo lo que hace queda apuntado en un registro que puedes revisar.
                 </TextBlock>
                 <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
@@ -65,22 +78,48 @@
             </StackPanel>
         </Border>
 
-        <TextBlock Text="Acerca de" Style="{StaticResource Section}" />
-        <Border Style="{StaticResource Tile}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Image Source="pack://application:,,,/Assets/tidy.png" Width="44" Height="44" />
-                <StackPanel Grid.Column="1" Margin="14,0" VerticalAlignment="Center">
-                    <TextBlock x:Name="VersionText" FontWeight="SemiBold" />
-                    <TextBlock Style="{StaticResource Muted}" Text="Optimizador seguro para Windows 11" />
-                </StackPanel>
-                <ui:Button Grid.Column="2" Content="Salir de Tidy" Icon="{ui:SymbolIcon Dismiss24}" VerticalAlignment="Center" Click="Quit_Click"
-                           ToolTip="Cierra también el icono de la bandeja" />
-            </Grid>
+        <TextBlock Text="Versión y actualizaciones" Style="{StaticResource Section}" />
+        <Border Style="{StaticResource Tile}" Margin="0,0,0,6">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Image Source="{DynamicResource AppLogo}" Width="48" Height="48" />
+                    <StackPanel Grid.Column="1" Margin="14,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="VersionText" FontWeight="SemiBold" FontSize="15" />
+                        <TextBlock x:Name="UpdateStatus" Style="{StaticResource Muted}" FontSize="13" Margin="0,2,0,0" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ui:Button x:Name="CheckBtn" Content="Buscar actualizaciones" Icon="{ui:SymbolIcon ArrowSync24}" Click="Check_Click" />
+                        <ui:Button x:Name="UpdateBtn" Appearance="Primary" Icon="{ui:SymbolIcon ArrowDownload24}" Margin="8,0,0,0" Visibility="Collapsed" Click="Update_Click" />
+                    </StackPanel>
+                </Grid>
+                <ProgressBar x:Name="UpdateProgress" Maximum="1" Margin="0,14,0,0" Visibility="Collapsed" />
+                <WrapPanel Margin="62,12,0,0">
+                    <ui:Button Content="Novedades" Icon="{ui:SymbolIcon Sparkle24}" Click="WhatsNew_Click" Margin="0,0,8,0" />
+                    <ui:Button Content="Tidy en GitHub" Icon="{ui:SymbolIcon Open24}" Click="GitHub_Click" Margin="0,0,8,0" />
+                    <ui:Button Content="Salir de Tidy" Icon="{ui:SymbolIcon Dismiss24}" Click="Quit_Click" ToolTip="Cierra también el icono de la bandeja" />
+                </WrapPanel>
+            </StackPanel>
         </Border>
+        <ui:CardControl Icon="{ui:SymbolIcon Globe24}" Margin="0,0,0,6">
+            <ui:CardControl.Header>
+                <StackPanel>
+                    <TextBlock Text="Buscar actualizaciones automáticamente" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Muted}" Text="Una vez al día mira en GitHub si hay una versión nueva y te avisa. Nunca instala nada sin que pulses Actualizar." />
+                </StackPanel>
+            </ui:CardControl.Header>
+            <ui:ToggleSwitch x:Name="AutoUpdate" Click="AutoUpdate_Click" />
+        </ui:CardControl>
+
+        <StackPanel x:Name="RetiredBox" Visibility="Collapsed">
+            <TextBlock Text="Funciones retiradas" Style="{StaticResource Section}" />
+            <TextBlock Style="{StaticResource Muted}" FontSize="13" Margin="2,0,0,10"
+                       Text="Optimizaciones que ya no están en esta versión pero que tenías activadas. Siguen aplicadas; aquí puedes devolver su valor original." />
+            <StackPanel x:Name="RetiredList" />
+        </StackPanel>
     </StackPanel>
 </Page>

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Management;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
 namespace Tidy.Core;
@@ -20,16 +21,19 @@ public static class Hardware
             new("Frecuencia base", $"{Convert.ToDouble(cpu?["MaxClockSpeed"] ?? 0) / 1000:0.0#} GHz"),
         ]));
 
-        foreach (var gpu in All("SELECT Name, DriverVersion, DriverDate, CurrentHorizontalResolution, CurrentVerticalResolution, CurrentRefreshRate FROM Win32_VideoController"))
+        foreach (var gpu in All("SELECT Name, DriverVersion FROM Win32_VideoController"))
         {
             var name = Str(gpu, "Name");
             if (name.Contains("Virtual", StringComparison.OrdinalIgnoreCase)) continue;
             var items = new List<HwItem> { new("Driver", name.Contains("NVIDIA") ? $"{Drivers.NvidiaVersion(Str(gpu, "DriverVersion"))} ({Str(gpu, "DriverVersion")})" : Str(gpu, "DriverVersion")) };
-            if (gpu["CurrentHorizontalResolution"] != null)
-                items.Add(new("Pantalla", $"{gpu["CurrentHorizontalResolution"]}×{gpu["CurrentVerticalResolution"]} @ {gpu["CurrentRefreshRate"]} Hz"));
             if (name.Contains("NVIDIA") && SysMon.Gpu() is { } g) items.Add(new("Memoria de vídeo", $"{g.VramTotalGb:0} GB"));
             s.Add(new("Tarjeta gráfica", "Games24", name, items));
         }
+
+        // Win32_VideoController only knows one mode per card, so 3 monitors on one GPU showed as 1.
+        var screens = Displays();
+        if (screens.Count > 0)
+            s.Add(new("Pantallas", "DesktopMac24", screens.Count == 1 ? "1 pantalla" : $"{screens.Count} pantallas", screens));
 
         var mods = All("SELECT Capacity, ConfiguredClockSpeed, Speed, Manufacturer, PartNumber, DeviceLocator FROM Win32_PhysicalMemory");
         var totalGb = mods.Sum(m => Convert.ToDouble(m["Capacity"])) / (1L << 30);
@@ -71,6 +75,76 @@ public static class Hardware
         ]));
         return s;
     }
+
+    public static List<HwItem> Displays()
+    {
+        var names = new List<(string Id, string Name)>();
+        try
+        {
+            using var q = new ManagementObjectSearcher(@"root\wmi", "SELECT InstanceName, UserFriendlyName FROM WmiMonitorID");
+            foreach (ManagementObject m in q.Get())
+                if (m["UserFriendlyName"] is ushort[] u && new string(u.TakeWhile(c => c != 0).Select(c => (char)c).ToArray()).Trim() is { Length: > 0 } n)
+                    names.Add((Str(m, "InstanceName"), n));
+        }
+        catch { }
+
+        var list = new List<HwItem>();
+        var ad = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() };
+        for (uint i = 0; EnumDisplayDevices(null, i, ref ad, 0); i++, ad.cb = Marshal.SizeOf<DISPLAY_DEVICE>())
+        {
+            if ((ad.StateFlags & 1) == 0) continue;   // not part of the desktop
+            var dm = new DEVMODE { dmSize = (short)Marshal.SizeOf<DEVMODE>() };
+            if (!EnumDisplaySettings(ad.DeviceName, -1, ref dm)) continue;   // ENUM_CURRENT_SETTINGS
+            var mon = new DISPLAY_DEVICE { cb = Marshal.SizeOf<DISPLAY_DEVICE>() };
+            var name = EnumDisplayDevices(ad.DeviceName, 0, ref mon, 1) ? MonitorName(mon, names) : null;
+            var primary = (ad.StateFlags & 4) != 0;
+            list.Add(new(name ?? $"Pantalla {list.Count + 1}",
+                $"{dm.dmPelsWidth}×{dm.dmPelsHeight} a {dm.dmDisplayFrequency} Hz{(primary ? " · principal" : "")}"));
+        }
+        return list.OrderByDescending(d => d.Value.EndsWith("principal")).ToList();
+    }
+
+    // \\?\DISPLAY#GSM5B7F#5&1a2b&0&UID4352#{guid} matches WMI's DISPLAY\GSM5B7F\5&1a2b&0&UID4352_0
+    static string? MonitorName(DISPLAY_DEVICE mon, List<(string Id, string Name)> names)
+    {
+        var id = mon.DeviceID ?? "";
+        var start = id.IndexOf("DISPLAY#", StringComparison.OrdinalIgnoreCase);
+        var end = id.LastIndexOf("#{", StringComparison.Ordinal);
+        if (start >= 0 && end > start)
+        {
+            var key = id[start..end].Replace('#', '\\');
+            foreach (var n in names)
+                if (n.Id.StartsWith(key, StringComparison.OrdinalIgnoreCase)) return n.Name;
+        }
+        return string.IsNullOrWhiteSpace(mon.DeviceString) || mon.DeviceString.StartsWith("Generic", StringComparison.OrdinalIgnoreCase) ? null : mon.DeviceString;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct DISPLAY_DEVICE
+    {
+        public int cb;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string DeviceName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceString;
+        public int StateFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceID;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceKey;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct DEVMODE
+    {
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
+        public short dmSpecVersion, dmDriverVersion, dmSize, dmDriverExtra;
+        public int dmFields, dmPositionX, dmPositionY, dmDisplayOrientation, dmDisplayFixedOutput;
+        public short dmColor, dmDuplex, dmYResolution, dmTTOption, dmCollate;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName;
+        public short dmLogPixels;
+        public int dmBitsPerPel, dmPelsWidth, dmPelsHeight, dmDisplayFlags, dmDisplayFrequency;
+        public int dmICMMethod, dmICMIntent, dmMediaType, dmDitherType, dmReserved1, dmReserved2, dmPanningWidth, dmPanningHeight;
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool EnumDisplayDevices(string? device, uint index, ref DISPLAY_DEVICE dd, uint flags);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool EnumDisplaySettings(string device, int mode, ref DEVMODE dm);
 
     static List<ManagementObject> All(string q)
     {

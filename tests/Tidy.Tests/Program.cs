@@ -9,7 +9,7 @@ var sandbox = Path.GetFullPath(args.Length > 0 ? args[0] : Path.Combine(Path.Get
 if (Directory.Exists(sandbox)) Cleaner.DeleteTree(sandbox);
 Directory.CreateDirectory(sandbox);
 Store.Dir = Path.Combine(sandbox, "store");
-Store.SecureDir = Path.Combine(sandbox, "secure"); // first thing: no test may touch the real Program Files\Tidy\datos
+Store.SecureDir = Path.Combine(sandbox, "secure"); // first thing: no test may touch the real Program Files\Tidy\data
 int failed = 0;
 void Check(bool ok, string what) { Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {what}"); if (!ok) failed++; }
 
@@ -249,6 +249,44 @@ var m1 = Benchmark.Measure("Primera");
 var m2 = Benchmark.Measure("Segunda");
 Check(Benchmark.All() is { Count: 2 } ms && ms[0].Label == "Primera" && m2.Processes > 10, $"mediciones: guardadas ({m2.Processes} procesos, {m2.RamUsedGb} GB RAM, arranque {m2.BootSec?.ToString("0.0") ?? "?"} s)");
 
+// ---- 1.0.0 Spanish folder names migrate to English without losing anything ----
+var oldQ = Path.Combine(sandbox, "datos", "cuarentena", "q-old");
+Directory.CreateDirectory(Path.Combine(oldQ, "files"));
+File.WriteAllText(Path.Combine(oldQ, "files", "keep.txt"), "x");
+File.WriteAllText(Path.Combine(oldQ, "manifest.json"), System.Text.Json.JsonSerializer.Serialize(new Quarantine
+    { Id = "q-old", App = "Vieja", Items = [new(LeftoverKind.File, Path.Combine(sandbox, "restored.txt"), Path.Combine(oldQ, "files", "keep.txt"))] }));
+Directory.CreateDirectory(Path.Combine(Store.Dir, "limpiezas"));
+File.WriteAllText(Path.Combine(Store.Dir, "limpiezas", "limpieza-1.txt"), "lista");
+Store.MigrateFolders();
+var mq = Uninstaller.Quarantines().FirstOrDefault(x => x.Id == "q-old");
+Check(mq != null && File.Exists(mq.Items[0].Stored) && mq.Items[0].Stored.StartsWith(Uninstaller.QuarantineRoot)
+    && File.Exists(Path.Combine(Store.CleanupsDir, "limpieza-1.txt")) && !Directory.Exists(Path.Combine(sandbox, "datos")), "carpetas: datos/cuarentena/limpiezas pasan a data/quarantine/cleanups");
+Check(mq != null && Uninstaller.Restore(mq).Failed == 0 && File.ReadAllText(Path.Combine(sandbox, "restored.txt")) == "x", "carpetas: la cuarentena migrada se puede restaurar");
+
+// ---- updates: only a verified GitHub release of Tidy is accepted ----
+string Rel(string tag, string url, long size, string? digest, bool draft = false) =>
+    $$"""{"tag_name":"{{tag}}","draft":{{(draft ? "true" : "false")}},"prerelease":false,"body":"notas","assets":[{"name":"Tidy-Setup.exe","size":{{size}},"browser_download_url":"{{url}}"{{(digest == null ? "" : $",\"digest\":\"sha256:{digest}\"")}}}]}""";
+var tidyExe = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\..\src\Tidy\bin\Debug\net10.0-windows\win-x64\Tidy.exe"));
+var exeHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(tidyExe)));
+var okUrl = "https://github.com/Jeray665/Tidy/releases/download/v1.1.0/Tidy-Setup.exe";
+var rel = Updater.Parse(System.Text.Json.JsonDocument.Parse(Rel("v1.1.0", okUrl, new FileInfo(tidyExe).Length, exeHash)).RootElement);
+Check(rel != null && rel.Version == new Version(1, 1, 0) && rel.Sha256 == exeHash, "actualizar: lee versión, tamaño y huella de la release");
+Check(Updater.Parse(System.Text.Json.JsonDocument.Parse(Rel("v9.0.0", "https://evil.example/Tidy-Setup.exe", 10, exeHash)).RootElement) == null, "actualizar: rechaza descargas fuera de github.com/Jeray665/Tidy");
+Check(Updater.Parse(System.Text.Json.JsonDocument.Parse(Rel("v9.0.0", okUrl, 10, exeHash, draft: true)).RootElement) == null, "actualizar: ignora borradores");
+bool Rejects(Action a) { try { a(); return false; } catch (InvalidDataException) { return true; } }
+Check(rel != null && !Rejects(() => Updater.Verify(tidyExe, rel, exeHash)), "actualizar: acepta el Tidy.exe correcto");
+Check(rel != null && Rejects(() => Updater.Verify(tidyExe, rel, new string('0', 64))), "actualizar: rechaza si la huella SHA-256 no coincide");
+Check(rel != null && Rejects(() => Updater.Verify(tidyExe, rel with { Size = rel.Size + 1 }, exeHash)), "actualizar: rechaza si el tamaño no coincide");
+var notepad = Path.Combine(Environment.SystemDirectory, "notepad.exe");
+Check(rel != null && Rejects(() => Updater.Verify(notepad, rel with { Size = new FileInfo(notepad).Length }, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(notepad))))), "actualizar: rechaza un .exe que no es Tidy aunque la huella cuadre");
+var swapDir = Path.Combine(sandbox, "swap"); Directory.CreateDirectory(swapDir);
+var running = Path.Combine(swapDir, "Tidy.exe"); File.WriteAllText(running, "old");
+var newer = Path.Combine(sandbox, "new.exe"); File.WriteAllText(newer, "new");
+using (File.Open(running, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete)) Install.ReplaceExe(newer, running);
+Check(File.ReadAllText(running) == "new" && File.ReadAllText(Path.Combine(swapDir, "Tidy.old.exe")) == "old", "actualizar: cambia el .exe aunque esté abierto y guarda el anterior");
+var log = Changelog.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\..\CHANGELOG.md"))));
+Check(log.Count >= 2 && log[0].Version.ToString() == System.Diagnostics.FileVersionInfo.GetVersionInfo(tidyExe).ProductVersion?.Split('+')[0] && log.All(v => v.Items.Count > 0), $"novedades: CHANGELOG.md tiene la versión de Tidy.exe ({log[0].Version}) con sus cambios");
+
 // ---- Read-only probes of the real system ----
 SysMon.Cpu(); Thread.Sleep(500);
 var ram = SysMon.Ram();
@@ -256,6 +294,8 @@ Console.WriteLine($"INFO  CPU {SysMon.Cpu():0}%  RAM {ram.Pct}% ({ram.UsedGb:0.0
 Console.WriteLine($"INFO  GPU {SysMon.Gpu()}");
 Console.WriteLine($"INFO  Planes: {string.Join(" | ", PowerPlan.All().Select(p => p.Name + (p.Active ? "*" : "")))}");
 Console.WriteLine($"INFO  Hardware: {string.Join(" | ", Hardware.Read().Select(s => s.Headline))}");
+var screens = Hardware.Displays();
+Check(screens.Count >= 1 && screens.All(d => d.Value.Contains(" Hz")), $"pantallas: {string.Join(" | ", screens.Select(d => $"{d.Label} {d.Value}"))}");
 var inv = Drivers.Inventory();
 Console.WriteLine($"INFO  Drivers de terceros: {inv.Count}  (ej. {string.Join(", ", inv.Take(3).Select(d => d.Device + " " + d.Version))})");
 Console.WriteLine($"INFO  Apps de inicio: {string.Join(", ", StartupApps.List().Select(a => a.Name + (a.Enabled ? "" : "(off)")))}");

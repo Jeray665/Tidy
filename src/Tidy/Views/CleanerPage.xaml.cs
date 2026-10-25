@@ -125,7 +125,7 @@ public partial class CleanerPage : Page
             Style = (Style)Application.Current.FindResource("FileList"),
             ItemsSource = withItems.SelectMany(r => r.Items).OrderByDescending(i => i.Size).ToList(),
         });
-        panel.Children.Add(Ui.Text($"Se guardará una copia de esta lista en {Path.Combine(Store.Dir, "limpiezas")}.", "Muted", 0));
+        panel.Children.Add(Ui.Text($"Se guardará una copia de esta lista en {Store.CleanupsDir}.", "Muted", 0));
 
         if (!await Ui.Confirm($"¿Borrar {CategoryRow.Files(count)} ({Store.FormatBytes(total)})?", panel, "Borrar definitivamente", danger: true))
             return null;

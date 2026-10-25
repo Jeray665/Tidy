@@ -36,7 +36,7 @@ public static class Benchmark
         }
         catch (Exception e)
         {
-            Store.Log($"Tiempos de arranque: {e.Message}");
+            Store.Log($"Boot times: {e.Message}");
             var admin = new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent()).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
             BootError = admin ? $"No se pudo leer el registro de arranques de Windows: {e.Message}" : "Windows solo deja leer los tiempos de arranque con permisos de administrador.";
         }
@@ -55,7 +55,7 @@ public static class Benchmark
         all.Add(m);
         if (all.Count > 100) all.RemoveRange(1, all.Count - 100); // keep the very first one: it's the "before"
         Store.WriteJson(FileName, all);
-        Store.Log($"Medición '{label}': RAM {m.RamUsedGb} GB, {procs} procesos, {startup} apps al inicio, {services} servicios, arranque {m.BootSec?.ToString("0.0") ?? "?"} s");
+        Store.Log($"Measurement '{label}': RAM {m.RamUsedGb} GB, {procs} processes, {startup} startup apps, {services} services, boot {m.BootSec?.ToString("0.0") ?? "?"} s");
         return m;
     }
 

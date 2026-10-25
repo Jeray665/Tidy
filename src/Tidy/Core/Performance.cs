@@ -132,11 +132,11 @@ public static class Memory
             var status = Native.NtSetSystemInformation(Native.SystemMemoryListInformation, ref cmd, sizeof(int));
             if (status != 0)
             {
-                Store.Log($"RAM: purga rechazada por Windows (NTSTATUS 0x{status:X8}). ¿Sin permisos de administrador?");
+                Store.Log($"RAM: purge refused by Windows (NTSTATUS 0x{status:X8}). Not running as administrator?");
                 return -1;
             }
             var freed = Math.Max(0, before - Lists().StandbyMb);
-            Store.Log($"RAM: liberados {freed} MB de memoria en espera ({reason}).");
+            Store.Log($"RAM: freed {freed} MB of standby memory ({reason}).");
             return freed;
         }
     }
@@ -179,7 +179,7 @@ public static class CleanReminder
         var bytes = Cleaner.Categories.Where(x => x.DefaultOn).Sum(x => Cleaner.Scan(x).Bytes);
         s.LastCleanReminder = DateTime.Now;
         Store.Save();
-        Store.Log($"Recordatorio de limpieza: {Store.FormatBytes(bytes)} se pueden liberar.");
+        Store.Log($"Cleanup reminder: {Store.FormatBytes(bytes)} can be freed.");
         if (bytes >= 300L << 20) Due?.Invoke(bytes);
     }
 }
@@ -235,12 +235,12 @@ public record PowerPlan(Guid Id, string Name, bool Active)
             else
             {
                 var (code, output) = Store.Run("powercfg.exe", $"-duplicatescheme {UltimateTemplate} {Ultimate}");
-                Store.Log($"Energía: crear plan Máximo rendimiento -> {code} {output.Trim()}");
+                Store.Log($"Power: create Ultimate Performance plan -> {code} {output.Trim()}");
                 if (code != 0) return false;
             }
         }
         var ok = Native.PowerSetActiveScheme(IntPtr.Zero, ref id) == 0;
-        Store.Log($"Energía: activar plan {id} -> {(ok ? "OK" : "error")}");
+        Store.Log($"Power: activate plan {id} -> {(ok ? "OK" : "error")}");
         if (ok && previous != null && previous.Id != id)
             History.Add(HistoryKind.Power, $"Plan de energía: {FriendlyName(id)}", $"Antes: {previous.Name}", $"power:{previous.Id}");
         return ok;
