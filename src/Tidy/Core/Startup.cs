@@ -181,7 +181,7 @@ public static class StartupApps
     }
 }
 
-public enum PresetKind { App, Service, Task }
+public enum PresetKind { App, Service, Task, Process }
 
 /// <summary>One thing a startup preset would change. Level 1 = Ligero, 2 = Equilibrado, 3 = Máximo.</summary>
 public record PresetItem(PresetKind Kind, string Name, string Detail, string Why, int Level, Func<(bool Ok, string Message)> Apply, bool On = true);
@@ -248,7 +248,7 @@ public static class StartupPresets
     static readonly Regex Protect = new(@"update|updater|upgrade|patch|defender|security|antivirus|anti-?virus|malware|avast|\bavg\b|kaspersky|eset|bitdefender|norton|mcafee|sophos|firewall|vpn|wireguard|cloudflare|warp|tailscale|zerotier|zscaler|globalprotect|forticlient|proxy|license|licencia|flexnet|sentinel|hasp|codemeter|teamviewer|anydesk|rustdesk|parsec|remote|backup|veeam|acronis|sql|database|mysql|postgres|apache|nginx|server|docker|vmware|virtualbox|wsl|password|bitwarden|1password|keepass|lastpass|dashlane|yubi|authenticator|claude|anthropic|tidy", RegexOptions.IgnoreCase);
     static readonly Regex Telemetry = new(@"telemetry|crash|reporter|diagnostic|feedback|ceip|analytics|metrics", RegexOptions.IgnoreCase);
     // hardware and things people expect to work right after logging in
-    static readonly Regex Hardware = new(@"audio|sound|realtek|nahimic|dolby|sonic|goxlr|elgato|stream ?deck|wave ?link|voicemeeter|equalizer|logi|razer|corsair|icue|steelseries|hyperx|asus|armoury|msi|gigabyte|nzxt|rgb|fan|cooler|afterburner|rivatuner|rtss|hwinfo|synaptics|elan|touchpad|keyboard|mouse|wacom|tobii|controller|xbox|ds4|dualsense|8bitdo|oculus|steamvr|vive|webcam|camera|bluetooth|nvidia|geforce|\bamd\b|radeon|intel|onedrive|dropbox|google ?drive|icloud|nextcloud|\bime\b|input|print|scanner|epson|canon|brother|\bhp\b", RegexOptions.IgnoreCase);
+    static readonly Regex Hardware = new(@"audio|sound|realtek|nahimic|dolby|sonic|goxlr|elgato|stream ?deck|wave ?link|voicemeeter|equalizer|logi|razer|corsair|icue|steelseries|hyperx|asus|armoury|msi|gigabyte|nzxt|rgb|fan|cooler|hardware|afterburner|rivatuner|rtss|hwinfo|synaptics|elan|touchpad|keyboard|mouse|wacom|tobii|controller|xbox|ds4|dualsense|8bitdo|oculus|steamvr|vive|webcam|camera|bluetooth|nvidia|geforce|\bamd\b|radeon|intel|onedrive|dropbox|google ?drive|icloud|nextcloud|\bime\b|input|print|scanner|epson|canon|brother|\bhp\b", RegexOptions.IgnoreCase);
     // third-party services that are safe on Manual: they start on demand when their program needs them
     static readonly Regex IdleServices = new(@"bonjour|mdnsresponder|wondershare|iobit|driver ?booster|drivereasy|ccleaner|glary|wise ?care|advanced ?systemcare|adobe ?genuine|agsservice", RegexOptions.IgnoreCase);
     static readonly Regex Launchers = new(@"steam|epic|eadesktop|\bea app\b|origin|ubisoft|uplay|battle\.net|gog|riot|discord|spotify|teams|skype|zoom|whatsapp|telegram|slack|messenger|opera|brave|vivaldi|\bedge\b|msedge|chrome|firefox|cortana|itunes|helper", RegexOptions.IgnoreCase);

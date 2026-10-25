@@ -1,5 +1,8 @@
 # Novedades de Tidy
 
+## 1.0.3
+- Procesos: "¿Qué gasta en segundo plano?" mide durante 10 segundos los programas abiertos sin ventana y te enseña lo que gasta cada uno. Puedes quitarlos del inicio o cerrarlos, siempre marcando tú cada uno; nunca salen antivirus, drivers, audio, VPN ni lo que controla tu hardware.
+
 ## 1.0.2
 - Analizar el disco C: muestra mensajes claros (qué hace y el resultado) en vez del texto de Windows con los acentos rotos.
 

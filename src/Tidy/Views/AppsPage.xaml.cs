@@ -226,6 +226,31 @@ public partial class AppsPage : Page
         await RefreshProcs();
     }
 
+    async void Background_Click(object sender, RoutedEventArgs e)
+    {
+        BgBtn.IsEnabled = false;
+        BgTitle.Text = "Midiendo durante 10 segundos…";
+        List<BackgroundApp> apps;
+        try { apps = await Task.Run(() => Core.Background.Analyze(TimeSpan.FromSeconds(10))); }
+        finally { BgBtn.IsEnabled = true; BgTitle.Text = "¿Qué gasta en segundo plano?"; }
+        if (apps.Count == 0) { Ui.Toast("Nada que sobre", "No hay programas sin ventana que gasten de más."); return; }
+
+        var items = new List<PresetItem>();
+        foreach (var a in apps)
+        {
+            if (a.Startup is { } s)
+                items.Add(new(PresetKind.App, a.Name, "Arranca con Windows", "Deja de abrirse sola al encender. Sigue instalada y se abre normal cuando la necesites.",
+                    a.Level, () => { StartupApps.SetEnabled(s, false); return (true, ""); }));
+            var count = a.Pids.Length == 1 ? "1 proceso" : $"{a.Pids.Length} procesos";
+            items.Add(new(PresetKind.Process, a.Name, $"{count} · {a.Cpu:0.0} % de CPU · {Store.FormatBytes(a.Memory)} de RAM",
+                $"Se cierra ahora sin guardar: {a.Exes}.", a.Level, () => Core.Background.Close(a), On: false));
+        }
+        if (await StartupPage.Review("Lo que gasta en segundo plano",
+                "Programas abiertos sin ventana, de más a menos gasto. Nunca aparecen antivirus, drivers, audio, VPN ni lo que controla tu hardware. Marca solo lo que quieras cambiar: quitar del inicio se deshace en Historial y lo que cierres lo puedes volver a abrir.",
+                items, "Tidy: segundo plano"))
+            await RefreshProcs(resort: true);
+    }
+
     void ProcMore_Click(object sender, RoutedEventArgs e)
     {
         var btn = (FrameworkElement)sender;

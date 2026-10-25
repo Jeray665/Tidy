@@ -14,7 +14,7 @@
     <ApplicationIcon>Assets\tidy.ico</ApplicationIcon>
     <AssemblyTitle>Tidy</AssemblyTitle>
     <Product>Tidy</Product>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <SatelliteResourceLanguages>es</SatelliteResourceLanguages>
   </PropertyGroup>

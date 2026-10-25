@@ -191,6 +191,25 @@ Check(new[] { @"C:\", @"C:\Windows", @"C:\Windows\System32\drivers", pf, Path.Co
               Path.Combine(up, @"AppData\Roaming"), Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), Path.Combine(up, "Downloads") }
           .All(Uninstaller.IsProtectedPath), "desinstalador: nunca ofrece C:\\, Windows, Program Files, Common Files, Usuarios, tu perfil, AppData, Documentos ni Descargas");
 Check(!Uninstaller.IsProtectedPath(Path.Combine(pf, "AlgunaApp")), "desinstalador: Program Files\\AlgunaApp sí");
+
+// ---- background apps: helpers join their program, but a shared folder never swallows other apps; only measuring here, nothing is closed ----
+var local = Path.Combine(up, @"AppData\Local");
+Check(Background.AppRoot(Path.Combine(pf, @"Steam\bin\cef\cef.win64\steamwebhelper.exe")) == Path.Combine(pf, "Steam")
+      && Background.AppRoot(Path.Combine(local, @"Medal\recorder-1\MedalEncoder.exe")) == Path.Combine(local, "Medal")
+      && Background.AppRoot(Path.Combine(local, @"Programs\Code\Code.exe")) == Path.Combine(local, @"Programs\Code")
+      && Background.AppRoot(Path.Combine(local, @"Temp\x\a.exe")) == Path.Combine(local, @"Temp\x")
+      && Background.AppRoot(Path.Combine(pf, @"WindowsApps\Pkg_1\App\a.exe")) == Path.Combine(pf, @"WindowsApps\Pkg_1")
+      && Background.AppRoot(@"C:\Tools\Una\a.exe") == @"C:\Tools\Una" && Background.AppRoot(@"C:\Tools\a.exe") == @"C:\Tools"
+      && Background.AppRoot(Path.Combine(up, @"Desktop\a.exe")) == Path.Combine(up, "Desktop") && Background.AppRoot(Path.Combine(pf, "a.exe")) == pf,
+      "segundo plano: los ayudantes van con su programa, pero Program Files, AppData, Temp, el Escritorio o C:\\Tools nunca juntan apps distintas");
+Check(new[] { @"C:\Program Files (x86)\Microsoft\EdgeWebView\Application\130.0\msedgewebview2.exe", @"C:\Program Files\dotnet\dotnet.exe",
+              @"C:\Program Files\nodejs\node.exe", Path.Combine(up, @"AppData\Local\Programs\Python\Python312\python.exe") }.All(Background.Runtimes.IsMatch)
+      && !Background.Runtimes.IsMatch(Path.Combine(pf, @"Steam\steam.exe")), "segundo plano: WebView2, .NET, Node y Python nunca salen (otras apps viven dentro)");
+var bg = Background.Analyze(TimeSpan.FromSeconds(1));
+var winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+Check(bg.All(a => a.Level is >= 1 and <= 3 && !a.Path.StartsWith(winDir, StringComparison.OrdinalIgnoreCase) && !a.Pids.Contains(Environment.ProcessId)
+                  && StartupPresets.Level($"{a.Name} {a.Path}") != null),
+      $"segundo plano: ni Windows, ni Tidy, ni nada protegido ({bg.Count} encontrados: {string.Join(", ", bg.Select(a => a.Name))})");
 Check(Uninstaller.IsAllowedKey(@"HKCU\Software\Discord") && Uninstaller.IsAllowedKey(@"HKLM64\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{ABC}"), "desinstalador: claves de la app y su entrada de desinstalación sí");
 Check(new[] { @"HKCU\Software\Microsoft", @"HKLM64\SOFTWARE\Classes", @"HKCU\Software", @"HKLM64\SYSTEM\CurrentControlSet", @"HKCU\Software\Policies",
               @"HKLM64\SOFTWARE\Microsoft\Windows\CurrentVersion\Run", @"HKCU\Software\..\x" }.All(k => !Uninstaller.IsAllowedKey(k)), "desinstalador: claves de sistema RECHAZADAS");

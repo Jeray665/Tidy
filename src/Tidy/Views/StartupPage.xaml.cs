@@ -93,7 +93,11 @@ public partial class StartupPage : Page
         {
             list.Children.Add(new System.Windows.Controls.TextBlock
             {
-                Text = group.Key switch { PresetKind.App => "Apps de inicio (se desactivan, no se desinstalan)", PresetKind.Service => "Servicios", _ => "Tareas programadas (se desactivan)" },
+                Text = group.Key switch
+                {
+                    PresetKind.App => "Apps de inicio (se desactivan, no se desinstalan)", PresetKind.Service => "Servicios",
+                    PresetKind.Task => "Tareas programadas (se desactivan)", _ => "Cerrar ahora (sin guardar; la abres cuando quieras)",
+                },
                 FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, boxes.Count == 0 ? 0 : 12, 0, 6),
             });
             foreach (var i in group)
@@ -114,14 +118,15 @@ public partial class StartupPage : Page
 
         var chosen = boxes.Where(b => b.Box.IsChecked == true).Select(b => b.Item).ToList();
         if (chosen.Count == 0) return false;
-        if (chosen.Any(c => c.Kind != PresetKind.App) && !await Ui.EnsureRestorePoint(restorePoint)) return false;
+        if (chosen.Any(c => c.Kind is PresetKind.Service or PresetKind.Task) && !await Ui.EnsureRestorePoint(restorePoint)) return false;
         var failed = await Task.Run(() => chosen.Where(c =>
         {
             try { return !c.Apply().Ok; }
             catch (Exception ex) { Store.Log($"{title}: {c.Name} failed: {ex.Message}"); return true; }
         }).Select(c => c.Name).ToList());
         Store.Log($"{title}: {chosen.Count - failed.Count} changed, {failed.Count} failed");
-        if (failed.Count == 0) Ui.Toast("Cambios aplicados", $"{chosen.Count} cambios. Se notará en el próximo arranque y se pueden deshacer en Historial.");
+        if (failed.Count == 0 && chosen.All(c => c.Kind == PresetKind.Process)) Ui.Toast("Cambios aplicados", $"{chosen.Count} cerradas. Se vuelven a abrir normal cuando las uses.");
+        else if (failed.Count == 0) Ui.Toast("Cambios aplicados", $"{chosen.Count} cambios. Se notará en el próximo arranque y se pueden deshacer en Historial.");
         else Ui.Toast("Aplicado en parte", $"No se pudo cambiar: {string.Join(", ", failed.Take(3))}{(failed.Count > 3 ? "…" : "")}", ControlAppearance.Caution);
         return true;
     }
