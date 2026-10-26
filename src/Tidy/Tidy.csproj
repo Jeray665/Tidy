@@ -29,7 +29,7 @@
     <Resource Include="Assets\tidy.png" />
     <Resource Include="Assets\tidy-dark.ico" />
     <Resource Include="Assets\tidy-dark.png" />
-    <Resource Include="Assets\i18n\en.json" />
+    <Resource Include="Assets\i18n\*.json" />
     <Resource Include="..\..\CHANGELOG.md" Link="Assets\CHANGELOG.md" />
   </ItemGroup>
 

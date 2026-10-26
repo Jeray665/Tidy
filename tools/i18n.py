@@ -1,7 +1,8 @@
-"""Collects every user-visible Spanish text in Tidy and keeps src/Tidy/Assets/i18n/en.json in step.
+"""Collects every user-visible Spanish text in Tidy and keeps each language file in src/Tidy/Assets/i18n/ in step.
 
   python tools/i18n.py          adds new texts (empty translation), drops ones no longer used, reports what is missing
-  python tools/i18n.py --check  only checks; exit code 1 if any text has no English translation (release.py runs this)
+  python tools/i18n.py --check  only checks; exit code 1 if any language misses a text or changes its {0} holes
+                                (release.py runs this)
 
 Interpolated C# strings become templates: $"{n} cambios" -> "{0} cambios". At runtime Tidy matches them with the
 holes as wildcards, and translates the text inside each hole on its own (so ternaries like {(on ? "sí" : "no")} work).
@@ -10,7 +11,8 @@ import io, json, os, re, sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 SRC = os.path.join(ROOT, 'src', 'Tidy')
-OUT = os.path.join(SRC, 'Assets', 'i18n', 'en.json')
+DIR = os.path.join(SRC, 'Assets', 'i18n')
+LANGS = ['en', 'pt', 'fr', 'de', 'ru', 'zh', 'ja']  # Spanish is the source; I18n.Languages lists the same
 
 ESC = {'n': '\n', 't': '\t', 'r': '\r', '"': '"', "'": "'", '\\': '\\', '0': '\0'}
 
@@ -115,21 +117,33 @@ def collect():
     return found
 
 
+def holes(s):
+    return sorted(re.findall(r'\{\d+\}', s))
+
+
 def main():
     found = collect()
-    old = json.load(io.open(OUT, encoding='utf-8')) if os.path.exists(OUT) else {}
-    merged = {k: old.get(k, '') for k in found}
-    missing = [k for k, v in merged.items() if not v.strip()]
-    if '--check' in sys.argv:
-        for k in missing[:20]: print('  sin traducir:', repr(k), '(' + found[k] + ')')
-        print(f'{len(merged)} textos, {len(missing)} sin traducir')
-        sys.exit(1 if missing else 0)
-    os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with io.open(OUT, 'w', encoding='utf-8', newline='\n') as f:
-        json.dump(merged, f, ensure_ascii=False, indent=1)
-        f.write('\n')
-    dropped = len([k for k in old if k not in merged])
-    print(f'{len(merged)} textos, {len(missing)} sin traducir, {dropped} ya no se usan (quitados)')
+    check, failed = '--check' in sys.argv, False
+    for lang in LANGS:
+        out = os.path.join(DIR, lang + '.json')
+        old = json.load(io.open(out, encoding='utf-8')) if os.path.exists(out) else {}
+        merged = {k: old.get(k, '') for k in found}
+        missing = [k for k, v in merged.items() if not v.strip()]
+        # a translation without the same holes breaks the template and shows the Spanish instead
+        wrong = [k for k, v in merged.items() if v.strip() and holes(v) != holes(k)]
+        failed |= bool(missing or wrong)
+        if check:
+            for k in missing[:10]: print(f'  {lang} sin traducir:', repr(k), '(' + found[k] + ')')
+            for k in wrong[:10]: print(f'  {lang} huecos distintos:', repr(k), '->', repr(merged[k]))
+            print(f'{lang}: {len(merged)} textos, {len(missing)} sin traducir, {len(wrong)} con huecos distintos')
+            continue
+        os.makedirs(DIR, exist_ok=True)
+        with io.open(out, 'w', encoding='utf-8', newline='\n') as f:
+            json.dump(merged, f, ensure_ascii=False, indent=1)
+            f.write('\n')
+        dropped = len([k for k in old if k not in merged])
+        print(f'{lang}: {len(merged)} textos, {len(missing)} sin traducir, {len(wrong)} con huecos distintos, {dropped} ya no se usan (quitados)')
+    if check: sys.exit(1 if failed else 0)
 
 
 if __name__ == '__main__':

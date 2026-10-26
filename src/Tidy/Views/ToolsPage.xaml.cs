@@ -54,7 +54,7 @@ public partial class ToolsPage : Page
         if (confirm != null && !await Ui.Confirm($"¿{f.Name}?", confirm, "Continuar", danger: f.Id == "advboot")) return;
         var (ok, msg) = await Task.Run(() => Repairs.Run(f));
         if (f.Console) Ui.Toast("Abierto en otra ventana", $"{f.Name}: sigue el progreso en la ventana negra. No la cierres hasta que termine.");
-        else Ui.Toast(ok ? "Hecho" : "No se pudo completar", ok ? f.Name + (f.NeedsRestart ? ". Reinicia el PC para terminar." : ".") : msg,
+        else Ui.Toast(ok ? "Hecho" : "No se pudo completar", ok ? (f.NeedsRestart ? $"{f.Name}\nReinicia el PC para terminar." : f.Name) : msg,
             ok ? ControlAppearance.Success : ControlAppearance.Danger);
     }
 

@@ -280,9 +280,10 @@ public partial class TweaksPage : Page
                 Ui.Toast(ok > 0 ? $"{ok} hechas, {failed.Count} no" : "No se pudo cambiar", string.Join("\n", failed.Take(3)) + "\nNo se ha quedado nada a medias.", ControlAppearance.Caution);
             else
             {
-                var what = tweaks.Count == 1 ? $"\"{tweaks[0].Title}\"" : $"{tweaks.Count} optimizaciones";
-                Ui.Toast(apply ? "Aplicado" : "Deshecho",
-                    $"{what} {(apply ? "aplicada(s)" : "deshecha(s), valor original restaurado")}." + (restart != null ? $" Surte efecto tras: {restart.ToLowerInvariant()}." : ""));
+                // whole message is one template, so every language translates it (title and restart get translated inside the holes)
+                var what = tweaks.Count == 1 ? tweaks[0].Title : $"{tweaks.Count} optimizaciones";
+                Ui.Toast(apply ? "Aplicado" : "Valor original restaurado",
+                    restart != null ? $"{what}\nSurte efecto tras: {restart.ToLowerInvariant()}." : what);
             }
             if (tweaks.Any(t => t.Restart == "Reiniciar Explorador") && failed.Count == 0 &&
                 await Ui.Confirm("¿Reiniciar el Explorador ahora?", "Algunos cambios se ven al reiniciar el Explorador. Se cerrarán las ventanas de carpetas abiertas (tus archivos y apps no).", "Reiniciar Explorador"))

@@ -34,13 +34,20 @@
             <ui:CardControl.Header>
                 <StackPanel>
                     <TextBlock Text="Idioma (Language)" FontWeight="SemiBold" />
-                    <TextBlock Style="{StaticResource Muted}" Text="Español o inglés. Se aplica al reiniciar Tidy." />
+                    <TextBlock Style="{StaticResource Muted}" Text="Se aplica al reiniciar Tidy." />
                 </StackPanel>
             </ui:CardControl.Header>
+            <!-- each language by its own name, never translated -->
             <ComboBox x:Name="LanguageBox" Width="170" SelectionChanged="Language_Changed">
                 <ComboBoxItem Content="Como Windows" Tag="" />
-                <ComboBoxItem Content="Español" Tag="es" />
-                <ComboBoxItem Content="English" Tag="en" />
+                <ComboBoxItem Tag="es">Español</ComboBoxItem>
+                <ComboBoxItem Tag="en">English</ComboBoxItem>
+                <ComboBoxItem Tag="pt">Português</ComboBoxItem>
+                <ComboBoxItem Tag="fr">Français</ComboBoxItem>
+                <ComboBoxItem Tag="de">Deutsch</ComboBoxItem>
+                <ComboBoxItem Tag="ru">Русский</ComboBoxItem>
+                <ComboBoxItem Tag="zh">中文 (简体)</ComboBoxItem>
+                <ComboBoxItem Tag="ja">日本語</ComboBoxItem>
             </ComboBox>
         </ui:CardControl>
         <ui:CardControl Icon="{ui:SymbolIcon Flash24}" Margin="0,0,0,6">

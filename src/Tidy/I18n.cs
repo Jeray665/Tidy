@@ -11,27 +11,40 @@ using System.Windows.Documents;
 namespace Tidy;
 
 /// <summary>
-/// English without touching every page: Spanish is the source text, and in English each text is looked up as it is shown
-/// (Assets/i18n/en.json, kept complete by tools/i18n.py). Interpolated texts are templates whose holes are wildcards,
-/// translated on their own. In Spanish none of this runs.
+/// Other languages without touching every page: Spanish is the source text, and in any other language each text is looked up
+/// as it is shown (Assets/i18n/xx.json, kept complete by tools/i18n.py). Interpolated texts are templates whose holes are
+/// wildcards, translated on their own. In Spanish none of this runs.
 /// </summary>
 public static class I18n
 {
-    public static bool English { get; private set; }
+    /// <summary>Language code → the culture for its numbers and dates. "es" is the source; the rest have Assets/i18n/xx.json.</summary>
+    public static readonly Dictionary<string, string> Languages = new()
+    {
+        ["es"] = "es-ES", ["en"] = "en-US", ["pt"] = "pt-BR", ["fr"] = "fr-FR", ["de"] = "de-DE", ["ru"] = "ru-RU", ["zh"] = "zh-CN", ["ja"] = "ja-JP",
+    };
+    /// <summary>The language in use ("es", "en", "pt"…).</summary>
+    public static string Lang { get; private set; } = "es";
+    static bool Translated => Lang != "es";
     static readonly Dictionary<string, string> Exact = [];
     static readonly Dictionary<string, string> Lower = [];
     static readonly List<(string Anchor, Regex Re, string En)> Templates = [];
     static readonly ConcurrentDictionary<string, string> Cache = new();
 
-    /// <summary>"es", "en" or "" (same as Windows: Spanish if Windows is in Spanish, English otherwise).</summary>
-    public static string Resolve(string? setting) =>
-        setting is "es" or "en" ? setting : CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "es" : "en";
+    /// <summary>A language code, or "" for the same as Windows (English when Tidy doesn't have Windows' language).</summary>
+    public static string Resolve(string? setting)
+    {
+        if (setting != null && Languages.ContainsKey(setting)) return setting;
+        var ui = CultureInfo.CurrentUICulture;
+        // Chinese: only Simplified (Traditional readers get English rather than the wrong script)
+        if (ui.TwoLetterISOLanguageName == "zh") return ui.Name is "zh-CN" or "zh-SG" || ui.Name.StartsWith("zh-Hans") ? "zh" : "en";
+        return Languages.ContainsKey(ui.TwoLetterISOLanguageName) ? ui.TwoLetterISOLanguageName : "en";
+    }
 
     public static void Init(string? setting)
     {
-        English = Resolve(setting) == "en";
-        if (!English) return;
-        using (var s = Application.GetResourceStream(new Uri("pack://application:,,,/Assets/i18n/en.json")).Stream)
+        Lang = Resolve(setting);
+        if (!Translated) return;
+        using (var s = Application.GetResourceStream(new Uri($"pack://application:,,,/Assets/i18n/{Lang}.json")).Stream)
             foreach (var (es, en) in JsonSerializer.Deserialize<Dictionary<string, string>>(s)!)
             {
                 if (en == "" || en == es) continue;
@@ -42,23 +55,25 @@ public static class I18n
             }
         // most specific first, so "{0} · {1}" only catches what nothing better does
         Templates.Sort((a, b) => b.Re.ToString().Length.CompareTo(a.Re.ToString().Length));
-        var culture = CultureInfo.GetCultureInfo("en-US");
+        var culture = CultureInfo.GetCultureInfo(Languages[Lang]);
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.DefaultThreadCurrentUICulture = culture;
         Thread.CurrentThread.CurrentCulture = Thread.CurrentThread.CurrentUICulture = culture;
+        // the language WPF picks fonts by: Chinese and Japanese share characters drawn differently
+        FrameworkElement.LanguageProperty.OverrideMetadata(typeof(FrameworkElement), new FrameworkPropertyMetadata(System.Windows.Markup.XmlLanguage.GetLanguage(culture.IetfLanguageTag)));
         // Loaded only reaches elements with their own handler; every element gets SizeChanged on its first layout
         EventManager.RegisterClassHandler(typeof(FrameworkElement), FrameworkElement.SizeChangedEvent, new SizeChangedEventHandler(OnFirstLayout));
     }
 
     static readonly DependencyProperty DoneProperty = DependencyProperty.RegisterAttached("Done", typeof(bool), typeof(I18n));
 
-    public static string T(string s) => !English || s.Length < 2 ? s : Cache.GetOrAdd(s, Translate);
+    public static string T(string s) => !Translated || s.Length < 2 ? s : Cache.GetOrAdd(s, Translate);
 
     static string Translate(string s)
     {
         if (Cache.Count > 20_000) Cache.Clear(); // ponytail: crude cap; live numbers make endless new strings
         if (Exact.TryGetValue(s, out var e)) return e;
         // names lowercased in code to sit mid-sentence ("Prioridad: alta"): translate the original, lowercase its first letter
-        if (s == s.ToLowerInvariant() && Lower.TryGetValue(s, out var l)) return char.ToLowerInvariant(l[0]) + l[1..];
+        if (s == s.ToLowerInvariant() && Lower.TryGetValue(s, out var l)) return Lang == "de" ? l : char.ToLowerInvariant(l[0]) + l[1..]; // German nouns keep their capital
         if (!Regex.IsMatch(s, "[a-záéíóúñ]{2}")) return s; // numbers, units, names in caps
         foreach (var (anchor, re, en) in Templates)
         {

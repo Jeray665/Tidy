@@ -25,7 +25,7 @@ public partial class SettingsPage : Page
         AutoRam.IsChecked = Store.Settings.AutoRam;
         ShowClean();
         ThemeBox.SelectedIndex = Store.Settings.Theme switch { "light" => 1, "dark" => 2, _ => 0 };
-        LanguageBox.SelectedIndex = Store.Settings.Language switch { "es" => 1, "en" => 2, _ => 0 };
+        LanguageBox.SelectedItem = LanguageBox.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == Store.Settings.Language) ?? LanguageBox.Items[0];
         Loaded += async (_, _) => Autostart.IsChecked = await Task.Run(() => Core.Autostart.IsEnabled);
     }
 
