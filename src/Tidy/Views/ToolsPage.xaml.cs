@@ -60,7 +60,7 @@ public partial class ToolsPage : Page
 
     async void WhoLocks_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new Microsoft.Win32.OpenFileDialog { Title = "Archivo que está en uso" };
+        var dlg = new Microsoft.Win32.OpenFileDialog { Title = I18n.T("Archivo que está en uso") };
         if (dlg.ShowDialog() != true) return;
         LockResult.Children.Clear();
         var asked = DateTime.Now;

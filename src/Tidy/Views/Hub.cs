@@ -22,6 +22,7 @@ public abstract class Hub : Page
         [typeof(SafetyHub)] = [("Seguridad", SymbolRegular.Shield24, typeof(SecurityPage)), ("Red", SymbolRegular.Globe24, typeof(NetworkPage))],
         [typeof(AdvancedHub)] = [("Servicios y tareas", SymbolRegular.Settings24, typeof(ServicesPage)), ("Herramientas", SymbolRegular.WrenchScrewdriver24, typeof(ToolsPage)),
             ("Hardware", SymbolRegular.DeveloperBoard24, typeof(HardwarePage))],
+        [typeof(UtilsHub)] = [("Imágenes", SymbolRegular.Image24, typeof(ImagesPage)), ("Comprobar archivo", SymbolRegular.ShieldCheckmark24, typeof(VerifyPage))],
         [typeof(HistoryHub)] = [("Historial", SymbolRegular.History24, typeof(HistoryPage)), ("Copias de seguridad", SymbolRegular.ShieldCheckmark24, typeof(BackupsPage))],
     };
 
@@ -79,4 +80,5 @@ public sealed class SpeedHub : Hub;
 public sealed class AppsHub : Hub;
 public sealed class SafetyHub : Hub;
 public sealed class AdvancedHub : Hub;
+public sealed class UtilsHub : Hub;
 public sealed class HistoryHub : Hub;

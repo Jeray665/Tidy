@@ -201,7 +201,7 @@ public partial class BackupsPage : Page
 
     void Export_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new Microsoft.Win32.SaveFileDialog { FileName = $"tidy-{Environment.MachineName}-{DateTime.Now:yyyyMMdd}.json", Filter = "Configuración de Tidy|*.json" };
+        var dlg = new Microsoft.Win32.SaveFileDialog { FileName = $"tidy-{Environment.MachineName}-{DateTime.Now:yyyyMMdd}.json", Filter = I18n.T("Configuración de Tidy|*.json") };
         if (dlg.ShowDialog() != true) return;
         var profile = Tweaks.Export();
         File.WriteAllText(dlg.FileName, JsonSerializer.Serialize(profile, new JsonSerializerOptions { WriteIndented = true }));
@@ -210,7 +210,7 @@ public partial class BackupsPage : Page
 
     async void Import_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "Configuración de Tidy|*.json" };
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = I18n.T("Configuración de Tidy|*.json") };
         if (dlg.ShowDialog() != true) return;
         Tweaks.Profile? profile;
         try { profile = JsonSerializer.Deserialize<Tweaks.Profile>(File.ReadAllText(dlg.FileName)); }

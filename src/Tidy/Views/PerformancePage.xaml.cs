@@ -98,7 +98,7 @@ public partial class PerformancePage : Page
 
     void AddGame_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "Juegos (*.exe)|*.exe", Title = "Elige el .exe del juego" };
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = I18n.T("Juegos (*.exe)|*.exe"), Title = I18n.T("Elige el .exe del juego") };
         if (dlg.ShowDialog() != true) return;
         if (!Store.Settings.GameExes.Contains(dlg.FileName, StringComparer.OrdinalIgnoreCase)) Store.Settings.GameExes.Add(dlg.FileName);
         Store.Save();

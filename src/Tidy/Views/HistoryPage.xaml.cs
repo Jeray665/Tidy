@@ -142,6 +142,7 @@ public partial class HistoryPage : Page
         foreach (var h in Network.HostsBackups()) set.Add($"hosts:{h.Name}");
         foreach (var q in Uninstaller.Quarantines()) set.Add($"quarantine:{q.Id}");
         foreach (var m in Storage.Moves()) set.Add($"moved:{m}");
+        foreach (var b in Images.Batches()) set.Add($"created:{b}");
         var plans = PowerPlan.All();
         foreach (var p in plans.Where(p => !p.Active)) set.Add($"power:{p.Id}");
         set.Add("recycle");
@@ -207,7 +208,7 @@ public partial class HistoryPage : Page
     static string UndoLabel(string undo) => undo.Split(':')[0] switch
     {
         "tweak" => "Deshacer", "service" or "task" or "dns" => "Volver a como estaba", "hosts" => "Restaurar versión anterior",
-        "quarantine" => "Restaurar restos", "moved" => "Devolver a su sitio", "winget" => "Desinstalar", "recycle" => "Abrir Papelera", "power" => "Volver al plan anterior", "powertime" => "Volver al tiempo anterior",
+        "quarantine" => "Restaurar restos", "moved" => "Devolver a su sitio", "created" => "Mandar copias a la Papelera", "winget" => "Desinstalar", "recycle" => "Abrir Papelera", "power" => "Volver al plan anterior", "powertime" => "Volver al tiempo anterior",
         "policies" => "Volver a bloquearlas",
         "startup" => undo.Contains(':') ? "Volver a como estaba" : "Ir a Inicio de Windows", _ => "Deshacer",
     };
@@ -234,6 +235,7 @@ public partial class HistoryPage : Page
                     "quarantine" => "Los restos vuelven a su sitio original.",
                     "moved" => "Cada archivo vuelve a la carpeta de donde se movió. Si allí ya hay otro con el mismo nombre, ese se queda donde está y no se pisa nada.",
                     "winget" => "Se desinstala el programa con su desinstalador oficial.",
+                    "created" => $"Las {Images.Record(arg)?.Count(File.Exists) ?? 0} copias que creó Tidy van a la Papelera (puedes recuperarlas de allí). Los originales no se tocan.",
                     "power" => "Se vuelve a activar el plan de energía anterior.",
                     "powertime" => "Se vuelve a poner el tiempo que había antes en el plan activo.",
                     "startup" => "La app vuelve a arrancar con Windows (o a no hacerlo) como antes de este cambio.",
@@ -249,6 +251,7 @@ public partial class HistoryPage : Page
                 "hosts" => Network.HostsBackups().FirstOrDefault(h => h.Name == arg) is { } h && Do(() => Network.RestoreHosts(h)),
                 "quarantine" => Uninstaller.Quarantines().FirstOrDefault(q => q.Id == arg) is { } q && Uninstaller.Restore(q).Failed == 0,
                 "moved" => Storage.UndoMove(arg),
+                "created" => Images.UndoBatch(arg),
                 "winget" => Winget.Uninstall(arg).Ok,
                 "startup" => StartupApps.Restore(arg),
                 "policies" => Repairs.RestorePolicies(arg),

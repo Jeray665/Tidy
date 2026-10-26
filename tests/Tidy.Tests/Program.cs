@@ -1,6 +1,7 @@
 ﻿// Safety checks for Tidy's core. Everything destructive runs inside a throwaway sandbox folder and a
 // throwaway HKCU\Software\TidyTest key. Usage: Tidy.Tests <sandboxDir> [--wu]
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
@@ -470,6 +471,114 @@ Check(StartupPresets.Level("Discord " + sq.Replace(@"""C:\Users\x\AppData\Local\
 var presetItems = StartupPresets.Candidates(); // read-only: lists, never applies
 Console.WriteLine($"INFO  Preconfiguraciones en este PC: Ligero {presetItems.Count(i => i.Level <= 1)}, Equilibrado {presetItems.Count(i => i.Level <= 2)}, Máximo {presetItems.Count}");
 foreach (var i in presetItems) Console.WriteLine($"INFO    [{i.Level}] {i.Kind}: {i.Name} ({i.Detail})");
+
+// ---- Images: convert, compress, resize, hidden data (all inside the sandbox) ----
+{
+    var imgDir = Path.Combine(sandbox, "img");
+    Directory.CreateDirectory(imgDir);
+    void Save(string path, System.Windows.Media.Imaging.BitmapEncoder enc, System.Windows.Media.Imaging.BitmapSource src, System.Windows.Media.Imaging.BitmapMetadata? meta = null)
+    {
+        enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(src, null, meta, null));
+        using var f = File.Create(path);
+        enc.Save(f);
+    }
+    System.Windows.Media.Imaging.BitmapSource Solid(int w, int h, Func<int, int, (byte B, byte G, byte R, byte A)> px)
+    {
+        var buf = new byte[w * h * 4];
+        for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) { var (b, g, r, a) = px(x, y); var i = (y * w + x) * 4; (buf[i], buf[i + 1], buf[i + 2], buf[i + 3]) = (b, g, r, a); }
+        return System.Windows.Media.Imaging.BitmapSource.Create(w, h, 96, 96, System.Windows.Media.PixelFormats.Bgra32, null, buf, w * 4);
+    }
+    System.Windows.Media.Imaging.BitmapFrame Open(string path) =>
+        System.Windows.Media.Imaging.BitmapDecoder.Create(new MemoryStream(File.ReadAllBytes(path)), System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad).Frames[0];
+    byte[] Pixel(System.Windows.Media.Imaging.BitmapSource s, int x, int y)
+    {
+        var c = new System.Windows.Media.Imaging.FormatConvertedBitmap(s, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+        var p = new byte[4];
+        c.CopyPixels(new System.Windows.Int32Rect(x, y, 1, 1), p, 4, 0);
+        return p;
+    }
+
+    // a PNG whose left half is see-through, right half red
+    var png = Path.Combine(imgDir, "a.png");
+    Save(png, new System.Windows.Media.Imaging.PngBitmapEncoder(), Solid(400, 300, (x, _) => x < 200 ? ((byte)0, (byte)0, (byte)0, (byte)0) : ((byte)0, (byte)0, (byte)255, (byte)255)));
+    // a camera-style JPG stored sideways (orientation 6) with the camera model and GPS in its hidden data
+    var jpg = Path.Combine(imgDir, "b.jpg");
+    var meta = new System.Windows.Media.Imaging.BitmapMetadata("jpg");
+    meta.SetQuery("System.Photo.Orientation", (ushort)6);
+    meta.SetQuery("System.Photo.CameraModel", "TidyCam 3000");
+    meta.SetQuery("/app1/ifd/gps/{ushort=1}", "N");
+    Save(jpg, new System.Windows.Media.Imaging.JpegBitmapEncoder { QualityLevel = 98 }, Solid(600, 400, (x, y) => ((byte)(x % 256), (byte)(y % 256), (byte)128, (byte)255)), meta);
+    var pngBefore = File.ReadAllBytes(png);
+    var jpgBefore = File.ReadAllBytes(jpg);
+    string? Model(string path) { try { return (Open(path).Metadata as System.Windows.Media.Imaging.BitmapMetadata)?.GetQuery("System.Photo.CameraModel") as string; } catch { return null; } }
+    Check(Model(jpg) == "TidyCam 3000", "imágenes: la foto de prueba lleva modelo de cámara");
+
+    var r1 = Images.Process([png, jpg], new ImageJob("jpg", 85, 0, true, null));
+    Check(r1.All(r => r.To != null) && File.Exists(Path.Combine(imgDir, "a (Tidy).jpg")) && File.Exists(Path.Combine(imgDir, "b (Tidy).jpg")), "imágenes: crea \"nombre (Tidy).jpg\" junto al original");
+    Check(File.ReadAllBytes(png).SequenceEqual(pngBefore) && File.ReadAllBytes(jpg).SequenceEqual(jpgBefore), "imágenes: los originales no cambian ni un byte");
+    var aJpg = Open(Path.Combine(imgDir, "a (Tidy).jpg"));
+    var white = Pixel(aJpg, 50, 150); var red = Pixel(aJpg, 350, 150);
+    Check(white[0] > 245 && white[1] > 245 && white[2] > 245 && red[2] > 230 && red[0] < 30, "imágenes: lo transparente pasa a blanco en JPG (no a negro)");
+    Check(r1[0].Note?.Contains("transparentes") == true, "imágenes: avisa de que tenía transparencias");
+    var bJpg = Open(Path.Combine(imgDir, "b (Tidy).jpg"));
+    Check(bJpg.PixelWidth == 400 && bJpg.PixelHeight == 600, "imágenes: la foto tumbada se endereza de verdad (600x400 -> 400x600)");
+    Check(Model(Path.Combine(imgDir, "b (Tidy).jpg")) == null, "imágenes: quitar datos ocultos borra el modelo de cámara y el GPS");
+
+    var r2 = Images.Process([jpg], new ImageJob("", 90, 0, false, null));
+    var kept = Path.Combine(imgDir, "b (Tidy) (2).jpg");
+    Check(r2[0].To == kept && File.Exists(Path.Combine(imgDir, "b (Tidy).jpg")), "imágenes: nunca sobrescribe, la segunda copia es \"(Tidy) (2)\"");
+    Check(Model(kept) == "TidyCam 3000" && (Open(kept).Metadata as System.Windows.Media.Imaging.BitmapMetadata)?.GetQuery("System.Photo.Orientation") is ushort o && o == 1 && Open(kept).PixelWidth == 400,
+          "imágenes: sin quitar datos, se conservan y la orientación pasa a normal (no se gira dos veces)");
+
+    var outDir = Path.Combine(sandbox, "img-out");
+    Directory.CreateDirectory(outDir);
+    var r3 = Images.Process([png], new ImageJob("", 85, 100, true, outDir));
+    var small = Open(Path.Combine(outDir, "a (Tidy).png"));
+    Check(small.PixelWidth == 100 && small.PixelHeight == 75 && Pixel(small, 10, 37)[3] == 0, "imágenes: reduce a 100 px manteniendo proporción y transparencia (PNG)");
+    var r3b = Images.Process([png], new ImageJob("png", 85, 5000, true, outDir));
+    Check(Open(r3b[0].To!).PixelWidth == 400, "imágenes: nunca agranda");
+
+    var r4 = Images.Process([png], new ImageJob("ico", 85, 0, true, outDir));
+    var ico = System.Windows.Media.Imaging.BitmapDecoder.Create(new MemoryStream(File.ReadAllBytes(r4[0].To!)), System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+    Check(ico is System.Windows.Media.Imaging.IconBitmapDecoder && ico.Frames.Select(f => f.PixelWidth).Order().SequenceEqual([16, 24, 32, 48, 64, 128, 256]) && ico.Frames.All(f => f.PixelWidth == f.PixelHeight),
+          "imágenes: ICO válido con 16 a 256 px, cuadrados");
+    foreach (var fmt in new[] { "bmp", "tiff", "gif" })
+        Check(Images.Process([jpg], new ImageJob(fmt, 85, 0, true, outDir))[0] is { To: { } t } && Open(t).PixelHeight == 600, $"imágenes: {fmt.ToUpperInvariant()} se crea y se abre");
+
+    var r5 = Images.Process([png], new ImageJob("jpg", 85, 0, true, Environment.GetFolderPath(Environment.SpecialFolder.Windows)));
+    Check(r5[0].To == null && !File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "a (Tidy).jpg")), "imágenes: nunca guarda en C:\\Windows");
+    var gif = Path.Combine(imgDir, "anim.gif");
+    var genc = new System.Windows.Media.Imaging.GifBitmapEncoder();
+    genc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(Solid(20, 20, (_, _) => (0, 0, 255, 255))));
+    genc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(Solid(20, 20, (_, _) => (255, 0, 0, 255))));
+    using (var gf = File.Create(gif)) genc.Save(gf);
+    Check(Images.Process([gif], new ImageJob("png", 85, 0, true, outDir))[0] is { To: null, Note: { } gn } && gn.Contains("varias"), "imágenes: un GIF animado se deja como está (no pierde fotogramas)");
+    var junk = Path.Combine(imgDir, "roto.jpg");
+    File.WriteAllText(junk, "esto no es una imagen");
+    Check(Images.Process([junk], new ImageJob("png", 85, 0, true, outDir))[0] is { To: null, Note: not null }, "imágenes: un archivo roto da un motivo, no rompe el lote");
+
+    var batches = Images.Batches().ToList();
+    var first = batches.Select(Images.Record).FirstOrDefault(rec => rec?.Count == 2);
+    Check(batches.Count >= 5 && first != null && first.All(p => p.Contains(" (Tidy)")) && !first.Contains(png) && !first.Contains(jpg),
+          "imágenes: Historial guarda solo las copias creadas (deshacer nunca toca los originales)");
+    Check(Images.Record(@"..\..\x") == null, "imágenes: un id con ruta no vale");
+    Check(History.All().Any(h => h.Undo?.StartsWith("created:") == true && h.Title.Contains("convertidas a JPG")), "imágenes: queda en Historial con deshacer");
+}
+
+// ---- File check: fingerprints ----
+{
+    var f = Path.Combine(sandbox, "abc.txt");
+    File.WriteAllText(f, "abc");
+    var sha = await FileCheck.Hash(f, "SHA-256");
+    Check(sha == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "huella: SHA-256 correcta");
+    Check(await FileCheck.Hash(f, "MD5") == "900150983cd24fb0d6963f7d28e17f72", "huella: MD5 correcta");
+    Check(FileCheck.Matches(sha, " SHA256: BA7816BF 8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD "), "huella: acepta mayúsculas, espacios y \"sha256:\"");
+    Check(!FileCheck.Matches(sha, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ae") && !FileCheck.Matches(sha, "hola"), "huella: una distinta o texto suelto NO coinciden");
+    Check(FileCheck.AlgorithmOf(sha) == "SHA-256" && FileCheck.AlgorithmOf("900150983cd24fb0d6963f7d28e17f72") == "MD5" && FileCheck.AlgorithmOf("xyz") == null, "huella: reconoce el tipo por la longitud");
+    Check(FileCheck.HasValidSignature(Path.Combine(Environment.SystemDirectory, "notepad.exe")) || FileCheck.HasValidSignature(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe")),
+          "huella: firma de Windows válida");
+    Check(!FileCheck.HasValidSignature(f), "huella: un archivo sin firma no pasa");
+}
 
 // ---- App catalog: newest version line ----
 var py = new CatalogApp("Python.Python.3.13", "Python 3.13", "Desarrollo", "Lenguaje de programación.");

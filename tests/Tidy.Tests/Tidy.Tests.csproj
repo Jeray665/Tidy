@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Core/Images.cs uses Windows' image codecs through WPF -->
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
 
   <ItemGroup>

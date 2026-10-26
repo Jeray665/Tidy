@@ -63,6 +63,7 @@ public static class Store
     public static string DownloadsDir => Path.Combine(SecureDir, "downloads");
     /// <summary>Where each "Mover" in Almacenamiento records what went where, so it can be put back.</summary>
     public static string MovesDir => Path.Combine(SecureDir, "moves");
+    public static string CreatedDir => Path.Combine(SecureDir, "created");
     static string SettingsPath => Path.Combine(Dir, "settings.json");
     static readonly object _lock = new();
     static readonly JsonSerializerOptions _json = new() { WriteIndented = true };

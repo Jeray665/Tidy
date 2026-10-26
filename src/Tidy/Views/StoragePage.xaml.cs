@@ -144,7 +144,7 @@ public partial class StoragePage : Page
         var table = (FileTable)FindName((string)((FrameworkElement)sender).Tag);
         var chosen = table.Chosen;
         if (chosen.Count == 0) return;
-        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "Carpeta a la que mover los archivos" };
+        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = I18n.T("Carpeta a la que mover los archivos") };
         if (dlg.ShowDialog() != true) return;
         var dest = dlg.FolderName;
         if (Storage.IsProtected(Path.Combine(dest, "x")))
@@ -191,7 +191,7 @@ public partial class StoragePage : Page
 
     void AddDupFolder_Click(object sender, RoutedEventArgs e)
     {
-        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = "Carpeta donde buscar duplicados" };
+        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = I18n.T("Carpeta donde buscar duplicados") };
         if (dlg.ShowDialog() != true) return;
         if (Storage.IsProtected(dlg.FolderName + "\\x"))
         { Ui.Toast("Carpeta del sistema", "En carpetas de Windows y de programas no se buscan duplicados: muchos son necesarios a propósito.", ControlAppearance.Caution); return; }
