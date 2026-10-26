@@ -1,5 +1,12 @@
 # Novedades de Tidy
 
+## 1.2.0
+- Imágenes: convierte entre JPG, PNG, BMP, TIFF, GIF e ICO (también abre HEIC, WebP y AVIF), comprime, reduce el tamaño, quita datos ocultos como el GPS y endereza. Los originales no se tocan: cada imagen se guarda como copia nueva.
+- Vídeo y audio: comprime vídeos a MP4 o saca solo el sonido en MP3 o M4A, con el motor de Windows y prioridad baja para que puedas seguir usando el PC. Los originales no se tocan.
+- Comprobar un archivo: compara su huella (SHA-256, SHA-512, SHA-1 o MD5) con la que publica la web y te dice si el programa lleva una firma digital válida.
+- Nuevos idiomas: portugués, francés, alemán, ruso, chino y japonés, a elegir en Ajustes.
+- El aviso al aplicar o deshacer optimizaciones y el de reiniciar tras una reparación salían en español con Tidy en otro idioma.
+
 ## 1.1.3
 - Apps: el catálogo para instalar muestra siempre la versión más nueva de Python que hay (hoy la 3.14), también cuando salgan versiones nuevas, sin esperar a que se actualice Tidy.
 
