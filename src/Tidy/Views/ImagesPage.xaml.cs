@@ -7,7 +7,7 @@ using Wpf.Ui.Controls;
 
 namespace Tidy.Views;
 
-public class ImageRow(string path) : Observable
+public class CopyRow(string path) : Observable
 {
     public string Path => path;
     public string Name => System.IO.Path.GetFileName(path);
@@ -23,10 +23,10 @@ public class ImageRow(string path) : Observable
 public partial class ImagesPage : Page
 {
     const int MaxFiles = 5000;
-    readonly List<ImageRow> _rows = [];
+    readonly List<CopyRow> _rows = [];
     string? _dest;
     CancellationTokenSource? _cts;
-    List<ImageResult> _last = [];
+    List<CopyResult> _last = [];
 
     public ImagesPage()
     {
@@ -64,7 +64,7 @@ public partial class ImagesPage : Page
         {
             if (!Images.IsImage(p) || !File.Exists(p) || known.Contains(p)) { skipped++; continue; }
             if (_rows.Count >= MaxFiles) { Ui.Toast("Demasiadas imágenes", $"Como mucho {MaxFiles} de una vez.", ControlAppearance.Caution); break; }
-            _rows.Add(new ImageRow(p));
+            _rows.Add(new CopyRow(p));
             known.Add(p);
         }
         if (skipped > 0 && _rows.Count == 0) Ui.Toast("Ninguna imagen", "Esa carpeta no tiene imágenes que Tidy sepa abrir.", ControlAppearance.Caution);
@@ -74,7 +74,7 @@ public partial class ImagesPage : Page
     void Remove_Click(object sender, RoutedEventArgs e)
     {
         if (_cts != null) return;
-        _rows.Remove((ImageRow)((FrameworkElement)sender).Tag);
+        _rows.Remove((CopyRow)((FrameworkElement)sender).Tag);
         Refresh();
     }
 

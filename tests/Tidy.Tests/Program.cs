@@ -1,4 +1,4 @@
-﻿// Safety checks for Tidy's core. Everything destructive runs inside a throwaway sandbox folder and a
+// Safety checks for Tidy's core. Everything destructive runs inside a throwaway sandbox folder and a
 // throwaway HKCU\Software\TidyTest key. Usage: Tidy.Tests <sandboxDir> [--wu]
 using System.Diagnostics;
 using System.IO;
@@ -390,7 +390,8 @@ Check(mq != null && Uninstaller.Restore(mq).Failed == 0 && File.ReadAllText(Path
 // ---- updates: only a verified GitHub release of Tidy is accepted ----
 string Rel(string tag, string url, long size, string? digest, bool draft = false) =>
     $$"""{"tag_name":"{{tag}}","draft":{{(draft ? "true" : "false")}},"prerelease":false,"body":"notas","assets":[{"name":"Tidy-Setup.exe","size":{{size}},"browser_download_url":"{{url}}"{{(digest == null ? "" : $",\"digest\":\"sha256:{digest}\"")}}}]}""";
-var tidyExe = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\..\src\Tidy\bin\Debug\net10.0-windows\win-x64\Tidy.exe"));
+var framework = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name; // both projects target the same framework
+var tidyExe = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\..\src\Tidy\bin\Debug", framework, @"win-x64\Tidy.exe"));
 var exeHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(tidyExe)));
 var exeVer = new Version(System.Diagnostics.FileVersionInfo.GetVersionInfo(tidyExe).FileVersion!).ToString(3);
 var okUrl = $"https://github.com/Jeray665/Tidy/releases/download/v{exeVer}/Tidy-Setup.exe";
@@ -578,6 +579,96 @@ foreach (var i in presetItems) Console.WriteLine($"INFO    [{i.Level}] {i.Kind}:
     Check(FileCheck.HasValidSignature(Path.Combine(Environment.SystemDirectory, "notepad.exe")) || FileCheck.HasValidSignature(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe")),
           "huella: firma de Windows válida");
     Check(!FileCheck.HasValidSignature(f), "huella: un archivo sin firma no pasa");
+}
+
+// ---- Video: compress, sound only (all inside the sandbox) ----
+{
+    var vDir = Path.Combine(sandbox, "vid");
+    Directory.CreateDirectory(vDir);
+    async Task<Windows.Media.MediaProperties.MediaEncodingProfile> Probe(string p)
+    {
+        using var s = File.OpenRead(p);
+        return await Windows.Media.MediaProperties.MediaEncodingProfile.CreateFromStreamAsync(s.AsRandomAccessStream());
+    }
+    // two seconds of a 440 Hz tone as a WAV
+    var wav = Path.Combine(vDir, "tono.wav");
+    using (var w = new BinaryWriter(File.Create(wav)))
+    {
+        const int rate = 44100, samples = rate * 2;
+        w.Write("RIFF"u8); w.Write(36 + samples * 2); w.Write("WAVEfmt "u8); w.Write(16); w.Write((short)1); w.Write((short)1);
+        w.Write(rate); w.Write(rate * 2); w.Write((short)2); w.Write((short)16); w.Write("data"u8); w.Write(samples * 2);
+        for (var i = 0; i < samples; i++) w.Write((short)(Math.Sin(2 * Math.PI * 440 * i / rate) * 8000));
+    }
+
+    Check(Video.Fit(1920, 1080, 720) == (1280u, 720u) && Video.Fit(1080, 1920, 720) == (720u, 1280u) && Video.Fit(640, 360, 720) == (640u, 360u),
+          "vídeo: reduce por el lado corto (también en vertical) y nunca agranda");
+    Check(Video.Bitrate(1920, 1080, 30, 1, 0) is > 3_000_000 and < 6_000_000 && Video.Bitrate(1920, 1080, 30, 0, 2_000_000) <= 1_700_000,
+          "vídeo: calidad razonable y nunca más datos que el original");
+    var mp3 = (await Video.Process([wav], new VideoJob("mp3", 1, 0, null)))[0];
+    Check(mp3.To is { } m && m.EndsWith("tono (Tidy).mp3") && (await Probe(m)) is { Audio: not null, Video: null }, "vídeo: WAV a MP3 (" + mp3.Note + ")");
+    var m4a = (await Video.Process([wav], new VideoJob("m4a", 1, 0, null)))[0];
+    Check(m4a.To is { } a && (await Probe(a)).Audio != null, "vídeo: WAV a M4A (" + m4a.Note + ")");
+    Check((await Video.Process([wav], new VideoJob("mp4", 1, 0, null)))[0] is { To: null, Note: { } noVideo } && noVideo.Contains("imagen"), "vídeo: un audio no se comprime como vídeo (y dice por qué)");
+
+    var oobe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), @"SystemApps\Microsoft.Windows.CloudExperienceHost_cw5n1h2txyewy\media\oobe-intro.mp4");
+    if (File.Exists(oobe))
+    {
+        var clip = Path.Combine(vDir, "clip.mp4");
+        File.Copy(oobe, clip);
+        var original = File.ReadAllBytes(clip);
+        var src = await Probe(clip);
+        Console.WriteLine($"INFO  Vídeo de prueba: {src.Video?.Width}x{src.Video?.Height}, {src.Video?.Bitrate / 1000} kbps, sonido {src.Audio != null}, {original.Length / 1024} KB");
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var r = (await Video.Process([clip], new VideoJob("mp4", 1, 480, null)))[0];
+        Console.WriteLine($"INFO  Comprimido en {sw.ElapsedMilliseconds} ms: {r.Before / 1024} KB -> {r.After / 1024} KB {r.Note}");
+        var made = r.To != null ? await Probe(r.To) : null;
+        var expectShort = Math.Min(480u, Math.Min(src.Video!.Width, src.Video.Height));
+        Check(made?.Video is { } mv && Math.Min(mv.Width, mv.Height) == expectShort && (src.Audio == null) == (made.Audio == null),
+              $"vídeo: MP4 a 480p que Windows abre, con su sonido ({r.Note}{made?.Video?.Width}x{made?.Video?.Height})");
+        Check(File.ReadAllBytes(clip).SequenceEqual(original), "vídeo: el original no cambia ni un byte");
+        if (src.Audio != null) Check((await Video.Process([clip], new VideoJob("mp3", 1, 0, null)))[0].To is { } cm && (await Probe(cm)).Video == null, "vídeo: saca el sonido de un vídeo a MP3");
+
+        // filmed upright on a phone: sideways frames plus "turn 90°" in the video track's header (tkhd matrix)
+        var upright = Path.Combine(vDir, "vertical.mp4");
+        var clipBytes = File.ReadAllBytes(clip);
+        for (var i = 4; i + 84 < clipBytes.Length; i++)
+        {
+            if (clipBytes[i] != 't' || clipBytes[i + 1] != 'k' || clipBytes[i + 2] != 'h' || clipBytes[i + 3] != 'd' || clipBytes[i + 4] != 0) continue;
+            var matrix = i + 4 + 4 + 4 * 5 + 8 + 2 * 4; // version/flags, 5 fields, reserved, layer/group/volume/reserved
+            if (System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(clipBytes.AsSpan(matrix + 36)) == 0) continue; // the sound track has no width
+            int[] turn = [0, 0x10000, 0, -0x10000, 0, 0, 0, 0, 0x40000000];
+            for (var k = 0; k < 9; k++) System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(clipBytes.AsSpan(matrix + 4 * k), turn[k]);
+            break;
+        }
+        File.WriteAllBytes(upright, clipBytes);
+        var ur = (await Video.Process([upright], new VideoJob("mp4", 1, 480, null)))[0];
+        var urOut = ur.To != null ? await Probe(ur.To) : null;
+        Check(urOut?.Video is { } uv && uv.Height > uv.Width && Math.Min(uv.Width, uv.Height) == expectShort,
+              $"vídeo: un vídeo grabado en vertical sale en vertical ({ur.Note}{urOut?.Video?.Width}x{urOut?.Video?.Height})");
+
+        // an MP4 that is already small: a bigger "compressed" copy isn't kept
+        var grown = (await Video.Process([upright], new VideoJob("mp4", 0, 0, null)))[0];
+        Console.WriteLine($"INFO  Vídeo ya comprimido a calidad alta: {grown.To ?? "sin copia"} {grown.Note}");
+        Check(grown.To != null ? grown.After < grown.Before : grown.Note?.Contains("ocuparía más") == true && Directory.GetFiles(vDir, "vertical (Tidy) (2)*").Length == 0,
+              "vídeo: si la copia de un MP4 iba a ocupar más, no se guarda");
+
+        // cancelled half way: the unfinished file doesn't stay behind
+        using var cts = new CancellationTokenSource();
+        var cancelled = false;
+        try { await Video.Process([clip], new VideoJob("mp4", 0, 0, null), each: new Progress<(int, double)>(p => { if (p.Item2 > 0.02) cts.Cancel(); }), ct: cts.Token); }
+        catch (OperationCanceledException) { cancelled = true; }
+        var second = Path.Combine(vDir, "clip (Tidy) (2).mp4");
+        Check(cancelled ? !File.Exists(second) : File.Exists(second) && new FileInfo(second).Length > 0, $"vídeo: al cancelar no queda un archivo a medias (cancelado: {cancelled})");
+    }
+    else Console.WriteLine("INFO  Sin vídeo de Windows para probar la compresión");
+
+    Check((await Video.Process([wav], new VideoJob("mp3", 1, 0, Environment.GetFolderPath(Environment.SpecialFolder.Windows))))[0].To == null, "vídeo: nunca guarda en C:\\Windows");
+    var broken = Path.Combine(vDir, "roto.mp4");
+    File.WriteAllText(broken, "esto no es un vídeo");
+    Check((await Video.Process([broken], new VideoJob("mp4", 1, 0, null)))[0] is { To: null, Note: not null } && !File.Exists(Path.Combine(vDir, "roto (Tidy).mp4")),
+          "vídeo: un archivo roto da un motivo y no deja nada");
+    Check(History.All().Any(h => h.Undo?.StartsWith("created:") == true && h.Title.Contains("audios sacados a MP3")) && Images.Batches().Select(Images.Record).Any(rec => rec?.Any(p => p.EndsWith("tono (Tidy).mp3")) == true),
+          "vídeo: queda en Historial y se puede mandar a la Papelera");
 }
 
 // ---- App catalog: newest version line ----

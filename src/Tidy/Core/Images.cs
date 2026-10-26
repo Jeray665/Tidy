@@ -12,8 +12,8 @@ namespace Tidy.Core;
 /// <param name="OutDir">Folder for the new files; null puts each next to its original.</param>
 public record ImageJob(string Format, int Quality, int MaxSide, bool StripData, string? OutDir);
 
-/// <param name="To">The new file, or null if this image was skipped (Note says why).</param>
-public record ImageResult(string From, string? To, long Before, long After, string? Note);
+/// <param name="To">The new file, or null if this one was skipped (Note says why). Images and videos alike.</param>
+public record CopyResult(string From, string? To, long Before, long After, string? Note);
 
 /// <summary>
 /// Converts, compresses and resizes images with Windows' own codecs (WIC, what Explorer uses for thumbnails): nothing extra to
@@ -40,31 +40,41 @@ public static class Images
         };
     }
 
-    public static List<ImageResult> Process(IReadOnlyList<string> files, ImageJob job, IProgress<int>? progress = null, CancellationToken ct = default)
+    public static List<CopyResult> Process(IReadOnlyList<string> files, ImageJob job, IProgress<int>? progress = null, CancellationToken ct = default)
     {
-        var results = new ImageResult[files.Count];
+        var results = new CopyResult?[files.Count];
         var done = 0;
-        // a few at a time: fast on big batches, and the rest of the PC stays responsive
-        Parallel.For(0, files.Count, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 1, 4), CancellationToken = ct }, i =>
+        try
         {
-            results[i] = One(files[i], job);
-            progress?.Report(Interlocked.Increment(ref done));
-        });
-        var made = results.Where(r => r.To != null).ToList();
-        if (made.Count > 0)
-        {
-            var id = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
-            Directory.CreateDirectory(Store.CreatedDir);
-            File.WriteAllText(Path.Combine(Store.CreatedDir, id + ".json"), System.Text.Json.JsonSerializer.Serialize(made.Select(r => r.To!).ToList()));
-            foreach (var r in made) Store.Log($"  image: {r.From} -> {r.To}");
-            var saved = made.Sum(r => r.Before - r.After);
-            History.Add(HistoryKind.Files, job.Format == "" ? $"{made.Count} imágenes optimizadas" : $"{made.Count} imágenes convertidas a {job.Format.ToUpperInvariant()}",
-                saved > 0 ? $"{Store.FormatBytes(saved)} menos que los originales" : "", $"created:{id}");
+            // a few at a time: fast on big batches, and the rest of the PC stays responsive
+            Parallel.For(0, files.Count, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 1, 4), CancellationToken = ct }, i =>
+            {
+                results[i] = One(files[i], job);
+                progress?.Report(Interlocked.Increment(ref done));
+            });
         }
-        return [.. results];
+        finally
+        {
+            // also when cancelled: the copies already made stay undoable
+            var made = results.Where(r => r?.To != null).Select(r => r!).ToList();
+            Remember(made,job.Format == "" ? $"{made.Count} imágenes optimizadas" : $"{made.Count} imágenes convertidas a {job.Format.ToUpperInvariant()}");
+        }
+        return [.. results.Select(r => r!)]; // all filled when not cancelled
     }
 
-    static ImageResult One(string from, ImageJob job)
+    /// <summary>Writes down the new files of a batch (images or videos) so Historial can send them to the Recycle Bin.</summary>
+    public static void Remember(IReadOnlyList<CopyResult> made, string title)
+    {
+        if (made.Count == 0) return;
+        var id = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
+        Directory.CreateDirectory(Store.CreatedDir);
+        File.WriteAllText(Path.Combine(Store.CreatedDir, id + ".json"), System.Text.Json.JsonSerializer.Serialize(made.Select(r => r.To!).ToList()));
+        foreach (var r in made) Store.Log($"  copy: {r.From} -> {r.To}");
+        var saved = made.Sum(r => r.Before - r.After);
+        History.Add(HistoryKind.Files, title, saved > 0 ? $"{Store.FormatBytes(saved)} menos que los originales" : "", $"created:{id}");
+    }
+
+    static CopyResult One(string from, ImageJob job)
     {
         long before = 0;
         try
@@ -254,7 +264,8 @@ public static class Images
         return ms.ToArray();
     }
 
-    static string Free(string path)
+    /// <summary>The path itself, or "name (2).ext", "name (3).ext"… if something is already there.</summary>
+    public static string Free(string path)
     {
         var (dir, name, ext) = (Path.GetDirectoryName(path)!, Path.GetFileNameWithoutExtension(path), Path.GetExtension(path));
         for (var i = 2; File.Exists(path) || Directory.Exists(path); i++) path = Path.Combine(dir, $"{name} ({i}){ext}");
