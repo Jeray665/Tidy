@@ -979,6 +979,7 @@
  "El tamaño del archivo no coincide.": "文件大小不一致。",
  "La huella SHA-256 no coincide: el archivo no es el publicado.": "SHA-256 指纹不一致：该文件不是官方发布的文件。",
  "El archivo no es Tidy o su versión no coincide.": "该文件不是 Tidy，或版本不一致。",
+ "<details><summary>Español</summary>": "<details><summary>Español</summary>",
  "{0} vídeos comprimidos": "已压缩 {0} 个视频",
  "{0} audios sacados a {1}": "已提取 {0} 个音频为 {1}",
  "Windows no pudo convertir este archivo.": "Windows 无法转换此文件。",

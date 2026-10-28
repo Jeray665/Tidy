@@ -979,6 +979,7 @@
  "El tamaño del archivo no coincide.": "ファイル サイズが一致しません。",
  "La huella SHA-256 no coincide: el archivo no es el publicado.": "SHA-256 の指紋が一致しません。公開されたファイルではありません。",
  "El archivo no es Tidy o su versión no coincide.": "ファイルが Tidy ではないか、バージョンが一致しません。",
+ "<details><summary>Español</summary>": "<details><summary>Español</summary>",
  "{0} vídeos comprimidos": "{0} 本の動画を圧縮しました",
  "{0} audios sacados a {1}": "{0} 件の音声を {1} として抽出しました",
  "Windows no pudo convertir este archivo.": "Windows でこのファイルを変換できませんでした。",

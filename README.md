@@ -1,74 +1,66 @@
 # Tidy
 
-**Español** · [English](README.en.md)
+**English** · [Español](README.es.md)
 
-Optimizador seguro para Windows 11: limpieza, optimizaciones, drivers, apps, red, seguridad y modo juego. Libre y de código abierto.
+A safe optimizer for Windows 11: cleanup, tweaks, drivers, apps, network, security and game mode. Free and open source.
 
-![Tidy: tu PC, en plena forma. Sin romper nada.](docs/img/hero.jpg)
+![Tidy: your PC in top shape. Without breaking anything.](docs/img/hero.jpg)
 
-**Descarga:** la última versión está en [Releases](../../releases/latest).
+**Download:** the latest version is on [Releases](../../releases/latest).
 
-- **Tidy-Setup.exe**: lo instala en Archivos de programa, con acceso en el menú Inicio y desinstalación desde Configuración > Aplicaciones. Se actualiza solo desde la app (con comprobación de huella SHA-256).
-- **Tidy-Portable.exe**: sin instalar. Guarda todo en una carpeta `TidyData` junto al .exe y no deja nada más en el PC.
+- **Tidy-Setup.exe** installs it in Program Files, with a Start menu entry and uninstall from Settings > Apps. It updates itself from inside the app (checking the SHA-256 fingerprint).
+- **Tidy-Portable.exe** runs without installing. It keeps everything in a `TidyData` folder next to the .exe and leaves nothing else on the PC.
 
-En español, inglés, portugués, francés, alemán, ruso, chino y japonés.
+Available in English, Spanish, Portuguese, French, German, Russian, Chinese and Japanese.
 
-## Qué hace
+## What it does
 
-- **Limpieza y almacenamiento:** temporales, cachés, archivos grandes, descargas y duplicados. Antes de borrar te enseña la lista exacta de archivos; lo de Almacenamiento va a la Papelera.
-- **Optimizaciones:** más de 80, con perfiles (Recomendado, Gaming, Privacidad, Rendimiento máximo). Cada una guarda el valor original y se deshace con su interruptor.
-- **Aplicaciones:** desinstalador en profundidad (los restos van a una cuarentena recuperable), procesos, y actualizar o instalar apps con winget.
-- **Rendimiento:** liberación automática de RAM, planes de energía y modo juego automático.
-- **Drivers:** desde Windows Update y nvidia.com (se comprueba la firma digital).
-- **Red, servicios, tareas e inicio de Windows**, con copia de seguridad de todo.
-- **Seguridad:** revisión de solo lectura (antivirus, firewall, UAC, Secure Boot, TPM, discos…).
-- **Utilidades:** convertir y comprimir imágenes, comprimir vídeos o sacar su sonido, y comprobar que una descarga es la auténtica (huella y firma digital). Los originales no se tocan.
-- **Historial:** todo lo que hace Tidy, con botón para deshacer, y comparación antes/después.
+- **Cleanup and storage:** temp files, caches, large files, downloads and duplicates. Before deleting anything it shows you the exact list of files; anything removed from Storage goes to the Recycle Bin.
+- **Tweaks:** more than 80, with profiles (Recommended, Gaming, Privacy, Maximum performance). Each one saves the original value and is undone with its own switch.
+- **Apps:** deep uninstaller (leftovers go to a recoverable quarantine), processes, and updating or installing apps with winget.
+- **Performance:** automatic RAM release, power plans and automatic game mode.
+- **Drivers:** from Windows Update and nvidia.com (the digital signature is checked).
+- **Network, services, scheduled tasks and Windows startup**, with a backup of everything.
+- **Security:** a read-only check-up (antivirus, firewall, UAC, Secure Boot, TPM, disks…).
+- **Utilities:** convert and compress images, compress videos or extract their audio, and check that a download is the real one (hash and digital signature). Originals are never touched.
+- **History:** everything Tidy does, with an undo button, and a before/after comparison.
 
-![Limpieza, optimizaciones y rendimiento](docs/img/funciones.jpg)
+![Cleanup, tweaks and performance](docs/img/funciones.jpg)
 
-![Las secciones de Tidy: servicios, almacenamiento, inicio de Windows y hardware](docs/img/secciones.jpg)
+![Tidy's sections: services, storage, Windows startup and hardware](docs/img/secciones.jpg)
 
-![Tema claro y oscuro](docs/img/temas.jpg)
+![Light and dark theme](docs/img/temas.jpg)
 
-## Lo que Tidy no hace a propósito
+## What Tidy deliberately doesn't do
 
-No desactiva Defender, el firewall, el UAC, SmartScreen, Windows Update ni las protecciones contra Spectre/Meltdown. Ninguna optimización baja la seguridad del PC.
+It doesn't turn off Defender, the firewall, UAC, SmartScreen, Windows Update or the Spectre/Meltdown mitigations. No tweak lowers your PC's security.
 
-![Optimiza sin miedo: todo se deshace](docs/img/seguro.jpg)
+![Optimize without fear: everything can be undone](docs/img/seguro.jpg)
 
-## "Windows protegió su PC"
+## "Windows protected your PC"
 
-Tidy aún no está firmado con un certificado de pago, así que Windows lo muestra como "Editor desconocido". Para abrirlo: **Más información** → **Ejecutar de todas formas**. Para comprobar que tu descarga es la auténtica, compara su SHA-256 con el archivo `.sha256` de la página de la versión:
+Tidy isn't signed with a paid certificate yet, so Windows shows it as an "Unknown publisher". To open it: **More info** → **Run anyway**. To check that your download is the real one, compare its SHA-256 with the `.sha256` file on the release page:
 
 ```
 certutil -hashfile Tidy-Setup.exe SHA256
 ```
 
-## Requisitos
+## Requirements
 
-Windows 11 (64 bits) y el [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
+Windows 11 (64-bit) and the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
 
-## Compilar
+## Build
 
 ```
 dotnet publish src/Tidy -c Release -p:PublishSingleFile=true -p:DebugType=none -o dist
 ```
 
-Pruebas de seguridad (se ejecutan en una carpeta aislada):
+Safety tests (they run in an isolated folder):
 
 ```
 dotnet run --project tests/Tidy.Tests
 ```
 
-Publicar una versión (sube `<Version>` en `src/Tidy/Tidy.csproj`, añade su entrada a `CHANGELOG.md` y haz commit antes):
+## License
 
-```
-python tools/release.py 1.2.0
-```
-
-Compila, crea Tidy-Setup.exe, Tidy-Portable.exe y su `.sha256`, publica la release y comprueba en GitHub que las notas no tienen acentos rotos y que la huella coincide.
-
-## Licencia
-
-Tidy es software libre bajo la [GNU GPL v3](LICENSE): puedes usarlo, estudiarlo, modificarlo y compartirlo, y cualquier versión modificada que se publique tiene que seguir siendo libre y con su código.
+Tidy is free software under the [GNU GPL v3](LICENSE): you can use, study, modify and share it, and any modified version that is published must stay free, with its source code.

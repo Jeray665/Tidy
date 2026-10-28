@@ -16,7 +16,9 @@ ROOT = Path(__file__).resolve().parent.parent
 GH = r"C:\Program Files\GitHub CLI\gh.exe"
 REPO = "Jeray665/Tidy"
 OUT = ROOT / "dist" / "release"
-FOOTER = "**Tidy-Setup.exe** instala o actualiza Tidy. **Tidy-Portable.exe** funciona sin instalar. Requiere el .NET 10 Desktop Runtime."
+FOOTER = "**Tidy-Setup.exe** installs or updates Tidy. **Tidy-Portable.exe** runs without installing. Requires the .NET 10 Desktop Runtime."
+# Tidy shows the part in the user's language when it offers the update (Changelog.NotesFor in Updater.cs)
+SPANISH = "<details><summary>Español</summary>"
 # what UTF-8 Spanish looks like after a wrong ANSI round trip, plus the replacement char and a stray BOM
 MOJIBAKE = re.compile("[\u00c3\u00c2\ufffd\ufeff]")
 
@@ -39,7 +41,16 @@ def notes(version):
     m = re.search(rf"^## {re.escape(version)}\s*\n(.*?)(?=^## |\Z)", log, re.S | re.M)
     if not m or not m.group(1).strip():
         sys.exit(f"STOP: CHANGELOG.md no tiene entrada para {version}")
-    return m.group(1).strip() + "\n\n" + FOOTER + "\n"
+    es = m.group(1).strip()
+    # English first (GitHub's readers); each line's translation is already in en.json for the "what's new" dialog
+    en_json = json.loads((ROOT / "src" / "Tidy" / "Assets" / "i18n" / "en.json").read_text(encoding="utf-8"))
+    en = []
+    for line in es.splitlines():
+        item = line[2:].strip() if line.startswith("- ") else None
+        if item is not None and not en_json.get(item):
+            sys.exit(f"STOP: falta la traducción al inglés de esta línea del CHANGELOG: {item!r}")
+        en.append("- " + en_json[item] if item is not None else line)
+    return "\n".join(en) + "\n\n" + FOOTER + "\n\n" + SPANISH + "\n\n" + es + "\n\n</details>\n"
 
 
 def push_notes(tag, body):

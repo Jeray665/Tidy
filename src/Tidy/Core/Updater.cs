@@ -191,4 +191,17 @@ public static class Changelog
         return list;
     }
 
+    const string SpanishOpen = "<details><summary>Español</summary>";
+
+    /// <summary>Release notes on GitHub are English, with the Spanish ones folded in a details block (tools/release.py):
+    /// the part in the user's language. Older releases (Spanish only) come back whole.</summary>
+    public static string NotesFor(string body, bool spanish)
+    {
+        var i = body.IndexOf(SpanishOpen, StringComparison.Ordinal);
+        if (i < 0) return body.Trim();
+        if (!spanish) return body[..i].Trim();
+        var es = body[(i + SpanishOpen.Length)..];
+        var end = es.IndexOf("</details>", StringComparison.Ordinal);
+        return (end < 0 ? es : es[..end]).Trim();
+    }
 }

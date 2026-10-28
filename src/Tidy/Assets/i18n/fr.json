@@ -979,6 +979,7 @@
  "El tamaño del archivo no coincide.": "La taille du fichier ne correspond pas.",
  "La huella SHA-256 no coincide: el archivo no es el publicado.": "L'empreinte SHA-256 ne correspond pas : ce n'est pas le fichier publié.",
  "El archivo no es Tidy o su versión no coincide.": "Le fichier n'est pas Tidy ou sa version ne correspond pas.",
+ "<details><summary>Español</summary>": "<details><summary>Español</summary>",
  "{0} vídeos comprimidos": "{0} vidéos compressées",
  "{0} audios sacados a {1}": "{0} pistes audio extraites en {1}",
  "Windows no pudo convertir este archivo.": "Windows n'a pas pu convertir ce fichier.",

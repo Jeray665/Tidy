@@ -435,6 +435,9 @@ var running = Path.Combine(swapDir, "Tidy.exe"); File.WriteAllText(running, "old
 var newer = Path.Combine(sandbox, "new.exe"); File.WriteAllText(newer, "new");
 using (File.Open(running, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete)) Install.ReplaceExe(newer, running);
 Check(File.ReadAllText(running) == "new" && File.ReadAllText(Path.Combine(swapDir, "Tidy.old.exe")) == "old", "actualizar: cambia el .exe aunque esté abierto y guarda el anterior");
+var body = "- New thing\n\n**Tidy-Setup.exe** installs.\n\n<details><summary>Español</summary>\n\n- Cosa nueva\n\n</details>\n";
+Check(Changelog.NotesFor(body, false) == "- New thing\n\n**Tidy-Setup.exe** installs." && Changelog.NotesFor(body, true) == "- Cosa nueva"
+    && Changelog.NotesFor("- Solo español", false) == "- Solo español", "notas de versión: inglés por defecto, español plegado, las antiguas enteras");
 var log = Changelog.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\..\..\CHANGELOG.md"))));
 Check(log.Count >= 1 && log[0].Version.ToString() == System.Diagnostics.FileVersionInfo.GetVersionInfo(tidyExe).ProductVersion?.Split('+')[0] && log.All(v => v.Items.Count > 0), $"novedades: CHANGELOG.md tiene la versión de Tidy.exe ({log[0].Version}) con sus cambios");
 

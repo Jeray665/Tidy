@@ -209,10 +209,11 @@ public partial class SettingsPage : Page
         if (Updater.Available is not { } r) return;
         var content = new StackPanel { MaxWidth = 640 };
         content.Children.Add(Ui.Text("Tidy se descarga de su página de GitHub y solo se instala si el archivo es exactamente el publicado (mismo tamaño y huella SHA-256). Luego se cierra y vuelve a abrirse ya actualizado.\n\nSe conservan tus ajustes, el historial, las copias de seguridad y lo que tengas optimizado."));
-        if (!string.IsNullOrWhiteSpace(r.Notes))
+        var notes = Changelog.NotesFor(r.Notes, I18n.Lang == "es");
+        if (!string.IsNullOrWhiteSpace(notes))
         {
             content.Children.Add(Ui.Text("Qué trae:", null, 4));
-            content.Children.Add(new ScrollViewer { MaxHeight = 220, Content = Ui.Text(r.Notes.Trim(), "Muted", 0) });
+            content.Children.Add(new ScrollViewer { MaxHeight = 220, Content = Ui.Text(notes, "Muted", 0) });
         }
         if (!await Ui.Confirm($"Actualizar a Tidy {r.Version}", content, "Descargar y actualizar")) return;
 
