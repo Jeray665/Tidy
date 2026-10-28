@@ -1,5 +1,8 @@
 # Novedades de Tidy
 
+## 1.2.1
+- Tidy-Setup.exe --silent instala Tidy sin ventanas, para poder instalarlo con winget o con un script. Si desinstalas así, se conservan tus ajustes y copias de seguridad.
+
 ## 1.2.0
 - Imágenes: convierte entre JPG, PNG, BMP, TIFF, GIF e ICO (también abre HEIC, WebP y AVIF), comprime, reduce el tamaño, quita datos ocultos como el GPS y endereza. Los originales no se tocan: cada imagen se guarda como copia nueva.
 - Vídeo y audio: comprime vídeos a MP4 o saca solo el sonido en MP3 o M4A, con el motor de Windows y prioridad baja para que puedas seguir usando el PC. Los originales no se tocan.

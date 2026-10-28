@@ -2107,6 +2107,7 @@
  "Cancelado. Las copias ya terminadas se quedan (puedes mandarlas a la Papelera desde Historial); la que estaba a medias no se guarda.": "キャンセルしました。完成したコピーは残ります（「履歴」からごみ箱に送れます）。途中だったものは保存されません。",
  "Convirtiendo": "Convirtiendo",
  "No se ha podido crear ninguna copia: mira el motivo en cada archivo.": "コピーを 1 つも作成できませんでした。各ファイルの理由を確認してください。",
+ "Tidy-Setup.exe --silent instala Tidy sin ventanas, para poder instalarlo con winget o con un script. Si desinstalas así, se conservan tus ajustes y copias de seguridad.": "Tidy-Setup.exe --silent でウィンドウを表示せずに Tidy をインストールできるため、winget やスクリプトでインストールできます。この方法でアンインストールしても、設定とバックアップは残ります。",
  "Imágenes: convierte entre JPG, PNG, BMP, TIFF, GIF e ICO (también abre HEIC, WebP y AVIF), comprime, reduce el tamaño, quita datos ocultos como el GPS y endereza. Los originales no se tocan: cada imagen se guarda como copia nueva.": "画像: JPG、PNG、BMP、TIFF、GIF、ICO の相互変換（HEIC、WebP、AVIF も開けます）、圧縮、サイズ縮小、GPS などの隠れたデータの削除、傾きの補正。元のファイルには触れず、それぞれ新しいコピーとして保存します。",
  "Vídeo y audio: comprime vídeos a MP4 o saca solo el sonido en MP3 o M4A, con el motor de Windows y prioridad baja para que puedas seguir usando el PC. Los originales no se tocan.": "動画と音声: 動画を MP4 に圧縮したり、音声だけを MP3 や M4A で取り出したりできます。Windows のエンジンを使い、低い優先度で処理するので PC を使い続けられます。元のファイルには触れません。",
  "Comprobar un archivo: compara su huella (SHA-256, SHA-512, SHA-1 o MD5) con la que publica la web y te dice si el programa lleva una firma digital válida.": "ファイルを検証: 指紋（SHA-256、SHA-512、SHA-1、MD5）をサイトが公開しているものと比較し、プログラムに有効なデジタル署名があるかを確認します。",
