@@ -13,6 +13,8 @@ A safe optimizer for Windows 11: cleanup, tweaks, drivers, apps, network, securi
 
 Available in English, Spanish, Portuguese, French, German, Russian, Chinese and Japanese.
 
+**Community:** questions, ideas and news on [Discord](https://discord.gg/34RZad5Uas).
+
 ## What it does
 
 - **Cleanup and storage:** temp files, caches, large files, downloads and duplicates. Before deleting anything it shows you the exact list of files; anything removed from Storage goes to the Recycle Bin.

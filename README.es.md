@@ -13,6 +13,8 @@ Optimizador seguro para Windows 11: limpieza, optimizaciones, drivers, apps, red
 
 En español, inglés, portugués, francés, alemán, ruso, chino y japonés.
 
+**Comunidad:** dudas, ideas y novedades en [Discord](https://discord.gg/34RZad5Uas).
+
 ## Qué hace
 
 - **Limpieza y almacenamiento:** temporales, cachés, archivos grandes, descargas y duplicados. Antes de borrar te enseña la lista exacta de archivos; lo de Almacenamiento va a la Papelera.
