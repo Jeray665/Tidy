@@ -1,6 +1,8 @@
 # Tidy
 
-Optimizador seguro para Windows 11: limpieza, optimizaciones, drivers, apps, red, seguridad y modo juego, en español.
+**Español** · [English](README.en.md)
+
+Optimizador seguro para Windows 11: limpieza, optimizaciones, drivers, apps, red, seguridad y modo juego. Libre y de código abierto.
 
 ![Tidy: tu PC, en plena forma. Sin romper nada.](docs/img/hero.jpg)
 
@@ -8,6 +10,8 @@ Optimizador seguro para Windows 11: limpieza, optimizaciones, drivers, apps, red
 
 - **Tidy-Setup.exe**: lo instala en Archivos de programa, con acceso en el menú Inicio y desinstalación desde Configuración > Aplicaciones. Se actualiza solo desde la app (con comprobación de huella SHA-256).
 - **Tidy-Portable.exe**: sin instalar. Guarda todo en una carpeta `TidyData` junto al .exe y no deja nada más en el PC.
+
+En español, inglés, portugués, francés, alemán, ruso, chino y japonés.
 
 ## Qué hace
 
@@ -18,6 +22,7 @@ Optimizador seguro para Windows 11: limpieza, optimizaciones, drivers, apps, red
 - **Drivers:** desde Windows Update y nvidia.com (se comprueba la firma digital).
 - **Red, servicios, tareas e inicio de Windows**, con copia de seguridad de todo.
 - **Seguridad:** revisión de solo lectura (antivirus, firewall, UAC, Secure Boot, TPM, discos…).
+- **Utilidades:** convertir y comprimir imágenes, comprimir vídeos o sacar su sonido, y comprobar que una descarga es la auténtica (huella y firma digital). Los originales no se tocan.
 - **Historial:** todo lo que hace Tidy, con botón para deshacer, y comparación antes/después.
 
 ![Limpieza, optimizaciones y rendimiento](docs/img/funciones.jpg)
@@ -31,6 +36,14 @@ Optimizador seguro para Windows 11: limpieza, optimizaciones, drivers, apps, red
 No desactiva Defender, el firewall, el UAC, SmartScreen, Windows Update ni las protecciones contra Spectre/Meltdown. Ninguna optimización baja la seguridad del PC.
 
 ![Optimiza sin miedo: todo se deshace](docs/img/seguro.jpg)
+
+## "Windows protegió su PC"
+
+Tidy aún no está firmado con un certificado de pago, así que Windows lo muestra como "Editor desconocido". Para abrirlo: **Más información** → **Ejecutar de todas formas**. Para comprobar que tu descarga es la auténtica, compara su SHA-256 con el archivo `.sha256` de la página de la versión:
+
+```
+certutil -hashfile Tidy-Setup.exe SHA256
+```
 
 ## Requisitos
 

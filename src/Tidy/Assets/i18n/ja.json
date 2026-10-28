@@ -335,6 +335,7 @@
  "Tidy sigue abierto. Ciérralo desde el icono de la bandeja e inténtalo de nuevo.": "Tidy はまだ開いています。トレイのアイコンから閉じて、もう一度お試しください。",
  "Publisher": "Publisher",
  "\"{0}\" --uninstall": "\"{0}\" --uninstall",
+ "\"{0}\" --uninstall --silent": "\"{0}\" --uninstall --silent",
  "deleted": "deleted",
  "kept": "kept",
  "/d /c \"\"{0}\" -n 4 127.0.0.1 >nul & del /f /q \"{1}\" \"{2}\" & rmdir \"{3}\"\"": "/d /c \"\"{0}\" -n 4 127.0.0.1 >nul & del /f /q \"{1}\" \"{2}\" & rmdir \"{3}\"\"",

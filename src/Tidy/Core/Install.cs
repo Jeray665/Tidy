@@ -88,6 +88,7 @@ public static class Install
             k.SetValue("DisplayIcon", Exe);
             k.SetValue("InstallLocation", Dir);
             k.SetValue("UninstallString", $"\"{Exe}\" --uninstall");
+            k.SetValue("QuietUninstallString", $"\"{Exe}\" --uninstall --silent");
             k.SetValue("URLInfoAbout", Repo);
             k.SetValue("NoModify", 1, RegistryValueKind.DWord);
             k.SetValue("NoRepair", 1, RegistryValueKind.DWord);

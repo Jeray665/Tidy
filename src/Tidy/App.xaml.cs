@@ -20,6 +20,14 @@ public partial class App : Application
         var setup = uninstall || (!Install.IsPortable && !Install.IsInstalled);
 #endif
         if (Install.IsPortable) Install.UsePortablePaths();
+        // winget and scripts: install (or with --uninstall remove, keeping settings and backups) without any window
+        if (setup && e.Args.Contains("--silent"))
+        {
+            Store.Load();
+            try { if (uninstall) Install.Uninstall(false); else Install.Run(false, false); Shutdown(0); }
+            catch (Exception ex) { Store.Log($"Silent setup failed: {ex}"); Shutdown(1); }
+            return;
+        }
         if (setup)
         {
             Store.Load();
