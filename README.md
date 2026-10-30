@@ -104,4 +104,6 @@ dotnet run --project tests/Tidy.Tests
 
 ## License
 
-Tidy is free software under the [GNU GPL v3](LICENSE): you can use, study, modify and share it, and any modified version that is published must stay free, with its source code.
+Tidy is free software under the [GNU GPL v3](LICENSE): you can use, study, modify and share it, and any modified version that is published must stay free, with its source code. It comes with no warranty.
+
+Copyright © 2026 Jeray665 · [Privacy](PRIVACY.md) · [Third-party notices](THIRD-PARTY-NOTICES.md) · [Security](SECURITY.md)

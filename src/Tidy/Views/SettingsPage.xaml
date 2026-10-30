@@ -137,6 +137,8 @@
                 <WrapPanel Margin="62,12,0,0">
                     <ui:Button Content="Novedades" Icon="{ui:SymbolIcon Sparkle24}" Click="WhatsNew_Click" Margin="0,0,8,0" />
                     <ui:Button Content="Tidy en GitHub" Icon="{ui:SymbolIcon Open24}" Click="GitHub_Click" Margin="0,0,8,0" />
+                    <ui:Button Content="Privacidad" Icon="{ui:SymbolIcon LockClosed24}" Click="Privacy_Click" Margin="0,0,8,0" />
+                    <ui:Button Content="Licencias" Icon="{ui:SymbolIcon Document24}" Click="Licenses_Click" Margin="0,0,8,0" ToolTip="La licencia de Tidy y la de las librerías que incluye" />
                     <ui:Button Content="Salir de Tidy" Icon="{ui:SymbolIcon Dismiss24}" Click="Quit_Click" ToolTip="Cierra también el icono de la bandeja" />
                 </WrapPanel>
             </StackPanel>

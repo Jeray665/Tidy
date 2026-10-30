@@ -112,4 +112,6 @@ Compila, crea Tidy-Setup.exe, Tidy-Portable.exe y su `.sha256`, publica la relea
 
 ## Licencia
 
-Tidy es software libre bajo la [GNU GPL v3](LICENSE): puedes usarlo, estudiarlo, modificarlo y compartirlo, y cualquier versión modificada que se publique tiene que seguir siendo libre y con su código.
+Tidy es software libre bajo la [GNU GPL v3](LICENSE): puedes usarlo, estudiarlo, modificarlo y compartirlo, y cualquier versión modificada que se publique tiene que seguir siendo libre y con su código. Se ofrece sin ninguna garantía.
+
+Copyright © 2026 Jeray665 · [Privacidad](PRIVACY.md#privacidad) · [Avisos de terceros](THIRD-PARTY-NOTICES.md) · [Seguridad](SECURITY.md)

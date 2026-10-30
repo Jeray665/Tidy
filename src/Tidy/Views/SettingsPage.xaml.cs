@@ -11,7 +11,7 @@ public partial class SettingsPage : Page
     public SettingsPage()
     {
         InitializeComponent();
-        VersionText.Text = $"Tidy {Updater.Current} · {(Install.IsPortable ? "versión portátil" : "instalado")} · software libre (GPL-3.0)";
+        VersionText.Text = $"Tidy {Updater.Current} · {(Install.IsPortable ? "versión portátil" : "instalado")} · software libre (GPL-3.0) · © 2026 Jeray665";
         AutoUpdate.IsChecked = Store.Settings.AutoUpdateCheck;
         ShowUpdateState();
         ShowRetired();
@@ -241,6 +241,8 @@ public partial class SettingsPage : Page
         await Ui.Info($"Novedades de Tidy", Ui.ChangeList(Ui.Changelog()));
 
     void GitHub_Click(object sender, RoutedEventArgs e) => Ui.OpenUrl(Install.Repo);
+    void Privacy_Click(object sender, RoutedEventArgs e) => Ui.OpenUrl($"{Install.Repo}/blob/main/PRIVACY.md{(I18n.Lang == "es" ? "#privacidad" : "")}");
+    void Licenses_Click(object sender, RoutedEventArgs e) => Ui.OpenUrl($"{Install.Repo}/blob/main/THIRD-PARTY-NOTICES.md");
 
     void ShowRetired()
     {
