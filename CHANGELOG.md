@@ -1,5 +1,12 @@
 # Novedades de Tidy
 
+## 1.3.0
+- Menú de la bandeja: nueva sección Programas, con lo que más gasta ahora (lo cierras con dos clics, y si tiene algo sin guardar te lo pregunta) y las apps que arrancan con Windows, cada una con su interruptor.
+- Menú de la bandeja: limpia sin abrir Tidy. Ves el espacio libre de cada disco, marcas qué limpiar, revisas la lista exacta de archivos y confirmas. También vacía la Papelera y cambia la limpieza programada.
+- Menú de la bandeja: nueva sección Estado, con la revisión de seguridad, las actualizaciones pendientes de apps, drivers y Tidy, el tiempo del último arranque y un botón para deshacer lo último.
+- Modo juego: ahora se puede activar a mano desde el menú de la bandeja, y se queda activo hasta que lo desactives.
+- Ajustes: botones de Privacidad y Licencias, que llevan a la política de privacidad y a las licencias de las librerías que incluye Tidy.
+
 ## 1.2.1
 - Tidy-Setup.exe --silent instala Tidy sin ventanas, para poder instalarlo con winget o con un script. Si desinstalas así, se conservan tus ajustes y copias de seguridad.
 
