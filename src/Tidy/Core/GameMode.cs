@@ -16,6 +16,8 @@ public static class GameMode
     public static event Action<string?>? Changed;
     public static string? Current { get; private set; }
     public static DateTime Since { get; private set; }
+    /// <summary>Turned on by hand from the tray: stays on until turned off, whatever is running.</summary>
+    public static bool Manual { get; private set; }
 
     static int _gamePid;
     static DateTime _lastTick = DateTime.MinValue, _rootsAt = DateTime.MinValue;
@@ -97,6 +99,7 @@ public static class GameMode
     {
         var s = Store.Settings;
         if (Current == null && s.GameModePrevPlan is { } stale) RestorePlan(stale); // left over from a crash
+        if (Manual) return;
         if (!s.GameModeAuto) { if (Current != null) Stop(); return; }
         if (DateTime.Now - _lastTick < TimeSpan.FromSeconds(4)) return;
         _lastTick = DateTime.Now;
@@ -157,7 +160,7 @@ public static class GameMode
         if (s.GameModeRam && Memory.PurgeStandby($"modo juego: {name}") > 0) done.Add("RAM liberada");
         if (s.GameModePriority)
         {
-            try { using var g = Process.GetProcessById(pid); if (g.PriorityClass == ProcessPriorityClass.Normal) { g.PriorityClass = ProcessPriorityClass.AboveNormal; done.Add("prioridad al juego"); } } catch { }
+            if (pid > 0) try { using var g = Process.GetProcessById(pid); if (g.PriorityClass == ProcessPriorityClass.Normal) { g.PriorityClass = ProcessPriorityClass.AboveNormal; done.Add("prioridad al juego"); } } catch { }
             foreach (var n in Background)
                 foreach (var p in Process.GetProcessesByName(n))
                     using (p)
@@ -170,6 +173,16 @@ public static class GameMode
 
     public static void Stop() { lock (_gate) StopLocked(); }
 
+    public static void StartManual()
+    {
+        lock (_gate)
+        {
+            if (Current != null) StopLocked();
+            Manual = true;
+            Start(0, "manual");
+        }
+    }
+
     static void StopLocked()
     {
         var name = Current;
@@ -179,6 +192,7 @@ public static class GameMode
         if (Store.Settings.GameModePrevPlan is { } plan) RestorePlan(plan);
         Current = null;
         _gamePid = 0;
+        Manual = false;
         if (name != null)
         {
             var mins = (int)(DateTime.Now - Since).TotalMinutes;

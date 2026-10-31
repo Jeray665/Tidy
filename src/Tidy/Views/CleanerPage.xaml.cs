@@ -130,7 +130,13 @@ public partial class CleanerPage : Page
         if (!await Ui.Confirm($"¿Borrar {CategoryRow.Files(count)} ({Store.FormatBytes(total)})?", panel, "Borrar definitivamente", danger: true))
             return null;
 
-        var report = await Task.Run(() => Cleaner.Clean(withItems));
+        return await CleanConfirmed(withItems);
+    }
+
+    /// <summary>Deletes what the user has just seen and confirmed, and remembers when.</summary>
+    public static async Task<Cleaner.CleanReport> CleanConfirmed(List<ScanResult> confirmed)
+    {
+        var report = await Task.Run(() => Cleaner.Clean(confirmed));
         Store.Settings.LastClean = DateTime.Now;
         Store.Settings.LastCleanBytes = report.Bytes;
         Store.Save();

@@ -58,7 +58,7 @@ public partial class PerformancePage : Page
     void ShowGameStatus()
     {
         var on = Store.Settings.GameModeAuto;
-        GameStatus.Text = !on ? "Desactivado." : GameMode.Current is { } g ? $"Jugando a {g} desde las {GameMode.Since:HH:mm}: modo juego activo." : "Activado. Esperando a que abras un juego.";
+        GameStatus.Text = GameMode.Manual ? $"Activado a mano desde las {GameMode.Since:HH:mm}." : !on ? "Desactivado." : GameMode.Current is { } g ? $"Jugando a {g} desde las {GameMode.Since:HH:mm}: modo juego activo." : "Activado. Esperando a que abras un juego.";
         GameStatus.Foreground = Ui.Res(GameMode.Current != null ? "SystemFillColorSuccessBrush" : "TextFillColorSecondaryBrush");
         GameBadge.Background = Ui.Res(GameMode.Current != null ? "SystemFillColorSuccessBackgroundBrush" : "ControlFillColorSecondaryBrush");
     }
@@ -82,7 +82,7 @@ public partial class PerformancePage : Page
         Store.Settings.GameModeAuto = GameAuto.IsChecked == true;
         Store.Save();
         Store.Log($"Automatic game mode: {(Store.Settings.GameModeAuto ? "on" : "off")}");
-        if (!Store.Settings.GameModeAuto && GameMode.Current != null) Task.Run(GameMode.Stop);
+        if (!Store.Settings.GameModeAuto && GameMode.Current != null && !GameMode.Manual) Task.Run(GameMode.Stop);
         ShowGameStatus();
     }
 

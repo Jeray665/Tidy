@@ -78,7 +78,15 @@ public static class Winget
         return Store.Run(ExePath, args, timeoutMs).Output;
     }
 
-    public static List<WingetPackage> Upgrades() => Table(Run($"upgrade {Common}"));
+    public static List<WingetPackage> Upgrades()
+    {
+        var list = Table(Run($"upgrade {Common}"));
+        // the tray menu shows the last count without asking winget again
+        Store.Settings.LastAppScan = DateTime.Now;
+        Store.Settings.LastAppUpdates = list.Count;
+        Store.Save();
+        return list;
+    }
 
     public static List<WingetPackage> Installed() => Table(Run($"list {Common}", 180_000));
 

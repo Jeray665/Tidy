@@ -43,6 +43,21 @@ public static class Background
         return list.OrderByDescending(a => a.Cpu).ThenByDescending(a => a.Memory).ToList();
     }
 
+    /// <summary>The programs using the most right now, open windows included (Windows' own and shared runtimes never show).</summary>
+    public static List<BackgroundApp> Top(TimeSpan span, int count)
+    {
+        var before = Snapshot().ToDictionary(s => s.Pid);
+        Thread.Sleep(span);
+        var cores = Environment.ProcessorCount;
+        double Cpu(Sample s) => before.TryGetValue(s.Pid, out var b) && b.Path == s.Path ? Math.Max(0, (s.Cpu - b.Cpu).TotalMilliseconds / span.TotalMilliseconds / cores * 100) : 0;
+        return Snapshot().GroupBy(s => AppRoot(s.Path), StringComparer.OrdinalIgnoreCase).Select(g =>
+        {
+            var main = g.OrderBy(s => s.Path.Length).ThenByDescending(s => s.Memory).First().Path;
+            var exes = string.Join(", ", g.Select(s => Path.GetFileName(s.Path)).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase));
+            return new BackgroundApp(Info(main).Name, main, g.Key, exes, g.Select(s => s.Pid).ToArray(), g.Sum(Cpu), g.Sum(s => s.Memory), null, 0);
+        }).OrderByDescending(a => a.Cpu >= 1 ? a.Cpu : 0).ThenByDescending(a => a.Memory).Take(count).ToList();
+    }
+
     /// <summary>
     /// The program's own folder: the topmost one below a folder that holds many programs (Program Files, AppData\Local, C:\Tools…).
     /// Steam\bin\cef joins Steam and Medal\recorder joins Medal, but two apps never end up together.
@@ -93,16 +108,25 @@ public static class Background
     public static (bool Ok, string Message) Close(BackgroundApp app)
     {
         int n = 0; var err = "";
-        foreach (var pid in app.Pids)
+        // a program with a window is asked to close, like clicking its X: it can still ask to save. Its helpers go with it.
+        var windows = app.Pids.Where(HasWindow).ToList();
+        foreach (var pid in windows.Count > 0 ? windows : [.. app.Pids])
             try
             {
                 using var p = Process.GetProcessById(pid);
                 if (Native.ProcessPath(pid) is not { } path || !AppRoot(path).Equals(app.Root, StringComparison.OrdinalIgnoreCase) || Processes.IsCritical(p)) continue;
-                p.Kill(); n++;
+                if (windows.Count > 0) p.CloseMainWindow(); else p.Kill();
+                n++;
             }
             catch (ArgumentException) { } // already gone
             catch (Exception e) { err = e.Message; }
-        Store.Log($"Background: closed {app.Name} ({n} processes){(err != "" ? $", error: {err}" : "")}");
+        Store.Log($"Background: {(windows.Count > 0 ? "asked to close" : "closed")} {app.Name} ({n} processes){(err != "" ? $", error: {err}" : "")}");
         return (err == "", err);
+    }
+
+    static bool HasWindow(int pid)
+    {
+        try { using var p = Process.GetProcessById(pid); return p.MainWindowHandle != IntPtr.Zero; }
+        catch { return false; }
     }
 }

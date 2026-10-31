@@ -53,7 +53,7 @@ public sealed class Tray : IDisposable
             Store.Settings.GameModeAuto = game.Checked;
             Store.Save();
             Store.Log($"Automatic game mode: {(game.Checked ? "on" : "off")} (tray menu)");
-            if (!game.Checked && GameMode.Current != null) Task.Run(GameMode.Stop);
+            if (!game.Checked && GameMode.Current != null && !GameMode.Manual) Task.Run(GameMode.Stop);
         };
         menu.Items.Add(game);
         menu.Items.Add(I18n.T("Limpieza…"), null, (_, _) => _app.ShowMain(typeof(Views.CleanerPage)));

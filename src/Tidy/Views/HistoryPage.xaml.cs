@@ -132,7 +132,7 @@ public partial class HistoryPage : Page
     }
 
     // ---------- timeline ----------
-    static HashSet<string> Undoable()
+    public static HashSet<string> Undoable()
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var t in Tweaks.Changed()) set.Add($"tweak:{t.Id}");
@@ -205,7 +205,7 @@ public partial class HistoryPage : Page
         HistoryKind.Power => "Flash24", HistoryKind.Startup => "Rocket24", HistoryKind.Game => "Games24", _ => "Info24",
     };
 
-    static string UndoLabel(string undo) => undo.Split(':')[0] switch
+    public static string UndoLabel(string undo) => undo.Split(':')[0] switch
     {
         "tweak" => "Deshacer", "service" or "task" or "dns" => "Volver a como estaba", "hosts" => "Restaurar versión anterior",
         "quarantine" => "Restaurar restos", "moved" => "Devolver a su sitio", "created" => "Mandar copias a la Papelera", "winget" => "Desinstalar", "recycle" => "Abrir Papelera", "power" => "Volver al plan anterior", "powertime" => "Volver al tiempo anterior",
@@ -225,46 +225,52 @@ public partial class HistoryPage : Page
             }
             // hosts: the full list of what goes back, the same one Copias de seguridad shows
             var hostsCopy = kind == "hosts" ? Network.HostsBackups().FirstOrDefault(h => h.Name == arg) : null;
-            if (!await Ui.Confirm($"¿{UndoLabel(e.Undo)}?", hostsCopy != null ? await BackupsPage.HostsChanges(hostsCopy) : $"{e.Title}\n\n" + kind switch
-                {
-                    "tweak" => "Se devuelve el valor que había antes de que Tidy lo cambiara.",
-                    "service" => "El servicio vuelve al tipo de inicio que tenía antes de Tidy (los cambios posteriores también se deshacen).",
-                    "task" => "La tarea vuelve al estado que tenía antes de Tidy.",
-                    "dns" => "Todas tus conexiones vuelven al DNS que tenían antes de Tidy.",
-                    "hosts" => "Se pone la versión del archivo hosts de antes de este cambio. La actual se guarda también como copia.",
-                    "quarantine" => "Los restos vuelven a su sitio original.",
-                    "moved" => "Cada archivo vuelve a la carpeta de donde se movió. Si allí ya hay otro con el mismo nombre, ese se queda donde está y no se pisa nada.",
-                    "winget" => "Se desinstala el programa con su desinstalador oficial.",
-                    "created" => $"Las {Images.Record(arg)?.Count(File.Exists) ?? 0} copias que creó Tidy van a la Papelera (puedes recuperarlas de allí). Los originales no se tocan.",
-                    "power" => "Se vuelve a activar el plan de energía anterior.",
-                    "powertime" => "Se vuelve a poner el tiempo que había antes en el plan activo.",
-                    "startup" => "La app vuelve a arrancar con Windows (o a no hacerlo) como antes de este cambio.",
-                    "policies" => "Se vuelven a poner las directivas que bloqueaban estas herramientas, tal como estaban.",
-                    _ => "",
-                }, UndoLabel(e.Undo))) return;
-            var ok = await Task.Run(() => kind switch
-            {
-                "tweak" => Tweaks.Find(arg) is { } t && Do(() => Tweaks.Revert(t)),
-                "service" => Services.Restore(arg),
-                "task" => ScheduledTasks.RestoreOriginal(arg),
-                "dns" => Network.RestoreDns() > 0,
-                "hosts" => Network.HostsBackups().FirstOrDefault(h => h.Name == arg) is { } h && Do(() => Network.RestoreHosts(h)),
-                "quarantine" => Uninstaller.Quarantines().FirstOrDefault(q => q.Id == arg) is { } q && Uninstaller.Restore(q).Failed == 0,
-                "moved" => Storage.UndoMove(arg),
-                "created" => Images.UndoBatch(arg),
-                "winget" => Winget.Uninstall(arg).Ok,
-                "startup" => StartupApps.Restore(arg),
-                "policies" => Repairs.RestorePolicies(arg),
-                "power" => Guid.TryParse(arg, out var g) && PowerPlan.Activate(g),
-                "powertime" => arg.Split(':') is [var id, var ac, var dc] && PowerTimeouts.All.FirstOrDefault(t => t.Id == id) is { } pt
-                    && uint.TryParse(ac, out var a) && uint.TryParse(dc, out var d) && Do(() => { Store.Settings.PowerTimeouts.Remove(id); Store.Save(); }) && PowerTimeouts.Write(pt, a, d),
-                _ => false,
-            });
+            if (!await Ui.Confirm($"¿{UndoLabel(e.Undo)}?", hostsCopy != null ? await BackupsPage.HostsChanges(hostsCopy) : $"{e.Title}\n\n" + Explain(kind, arg), UndoLabel(e.Undo))) return;
+            var ok = await Task.Run(() => Apply(kind, arg));
             Ui.Toast(ok ? "Deshecho" : "No se pudo deshacer del todo", ok ? e.Title : "Revisa el registro de actividad en Ajustes.", ok ? ControlAppearance.Success : ControlAppearance.Caution);
         }
         catch (Exception ex) { Ui.Toast("No se pudo deshacer", ex.Message, ControlAppearance.Danger); }
         await Refresh();
     }
+
+    /// <summary>What undoing this entry puts back, said before doing it.</summary>
+    public static string Explain(string kind, string arg) => kind switch
+    {
+        "tweak" => "Se devuelve el valor que había antes de que Tidy lo cambiara.",
+        "service" => "El servicio vuelve al tipo de inicio que tenía antes de Tidy (los cambios posteriores también se deshacen).",
+        "task" => "La tarea vuelve al estado que tenía antes de Tidy.",
+        "dns" => "Todas tus conexiones vuelven al DNS que tenían antes de Tidy.",
+        "hosts" => "Se pone la versión del archivo hosts de antes de este cambio. La actual se guarda también como copia.",
+        "quarantine" => "Los restos vuelven a su sitio original.",
+        "moved" => "Cada archivo vuelve a la carpeta de donde se movió. Si allí ya hay otro con el mismo nombre, ese se queda donde está y no se pisa nada.",
+        "winget" => "Se desinstala el programa con su desinstalador oficial.",
+        "created" => $"Las {Images.Record(arg)?.Count(File.Exists) ?? 0} copias que creó Tidy van a la Papelera (puedes recuperarlas de allí). Los originales no se tocan.",
+        "power" => "Se vuelve a activar el plan de energía anterior.",
+        "powertime" => "Se vuelve a poner el tiempo que había antes en el plan activo.",
+        "startup" => "La app vuelve a arrancar con Windows (o a no hacerlo) como antes de este cambio.",
+        "policies" => "Se vuelven a poner las directivas que bloqueaban estas herramientas, tal como estaban.",
+        _ => "",
+    };
+
+    /// <summary>Undoes one entry (the confirmation is the caller's). Runs off the UI thread.</summary>
+    public static bool Apply(string kind, string arg) => kind switch
+    {
+        "tweak" => Tweaks.Find(arg) is { } t && Do(() => Tweaks.Revert(t)),
+        "service" => Services.Restore(arg),
+        "task" => ScheduledTasks.RestoreOriginal(arg),
+        "dns" => Network.RestoreDns() > 0,
+        "hosts" => Network.HostsBackups().FirstOrDefault(h => h.Name == arg) is { } h && Do(() => Network.RestoreHosts(h)),
+        "quarantine" => Uninstaller.Quarantines().FirstOrDefault(q => q.Id == arg) is { } q && Uninstaller.Restore(q).Failed == 0,
+        "moved" => Storage.UndoMove(arg),
+        "created" => Images.UndoBatch(arg),
+        "winget" => Winget.Uninstall(arg).Ok,
+        "startup" => StartupApps.Restore(arg),
+        "policies" => Repairs.RestorePolicies(arg),
+        "power" => Guid.TryParse(arg, out var g) && PowerPlan.Activate(g),
+        "powertime" => arg.Split(':') is [var id, var ac, var dc] && PowerTimeouts.All.FirstOrDefault(t => t.Id == id) is { } pt
+            && uint.TryParse(ac, out var a) && uint.TryParse(dc, out var d) && Do(() => { Store.Settings.PowerTimeouts.Remove(id); Store.Save(); }) && PowerTimeouts.Write(pt, a, d),
+        _ => false,
+    };
 
     static bool Do(Action a) { a(); return true; }
 }

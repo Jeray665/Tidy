@@ -16,6 +16,8 @@ public class Settings
     public long LastCleanBytes { get; set; }
     public DateTime? LastDriverScan { get; set; }
     public int LastDriverUpdates { get; set; }
+    public DateTime? LastAppScan { get; set; }
+    public int LastAppUpdates { get; set; }
     public bool AutostartDismissed { get; set; }
 
     public bool GameModeAuto { get; set; }

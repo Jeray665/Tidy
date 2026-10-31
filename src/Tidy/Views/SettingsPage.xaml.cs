@@ -82,12 +82,18 @@ public partial class SettingsPage : Page
             _cleanBoxes.Add((box, c));
             CleanCats.Children.Add(box);
         }
+        CleanNext.Text = NextCleanText();
+        _showingClean = false;
+    }
+
+    public static string NextCleanText()
+    {
+        var s = Store.Settings;
         var last = new[] { s.LastClean, s.LastCleanReminder }.Max();
         var next = last?.AddDays(Math.Max(1, s.CleanReminderDays));
         // translated piece by piece: the joined sentence isn't a known text
-        CleanNext.Text = I18n.T(next is { } n && n > DateTime.Now ? $"Próxima vez: a partir del {n:dd/MM/yyyy}." : "Próxima vez: cuando Tidy lleve una hora abierto.")
-                         + " " + I18n.T("Nunca mientras juegas ni nada más encender.");
-        _showingClean = false;
+        return I18n.T(next is { } n && n > DateTime.Now ? $"Próxima vez: a partir del {n:dd/MM/yyyy}." : "Próxima vez: cuando Tidy lleve una hora abierto.")
+               + " " + I18n.T("Nunca mientras juegas ni nada más encender.");
     }
 
     async void CleanMode_Changed(object sender, SelectionChangedEventArgs e)

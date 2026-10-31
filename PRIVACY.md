@@ -14,7 +14,7 @@ Only for these things, and except for the first one, only when you ask for them:
 |---|---|---|
 | Check for a new Tidy version, and download it | GitHub (`api.github.com`, `github.com`) | When the window opens and once a day. You can turn it off in Settings. |
 | Look for driver updates | Windows Update, and NVIDIA (`nvidia.com`, `geforce.com`) if you have an NVIDIA card | When you press "Scan" in Drivers |
-| Check, install or update apps | winget (Microsoft's app sources) and the official site of each app | When you open "Update and install" in Apps, and when you install or update an app |
+| Check, install or update apps | winget (Microsoft's app sources) and the official site of each app | When you open "Update and install" in Apps or press "Check" in the tray menu, and when you install or update an app |
 | Block ads and trackers | The public blocklist at `raw.githubusercontent.com/StevenBlack/hosts` | When you turn the blocking on |
 | Measure DNS speed and latency | The DNS servers and the address you choose | When you press "Measure" |
 
@@ -40,7 +40,7 @@ Solo para esto, y salvo lo primero, solo cuando tú lo pides:
 |---|---|---|
 | Buscar una versión nueva de Tidy y descargarla | GitHub (`api.github.com`, `github.com`) | Al abrir la ventana y una vez al día. Se desactiva en Ajustes. |
 | Buscar drivers nuevos | Windows Update, y NVIDIA (`nvidia.com`, `geforce.com`) si tienes una tarjeta NVIDIA | Al pulsar "Escanear" en Drivers |
-| Ver, instalar o actualizar apps | winget (los orígenes de apps de Microsoft) y la web oficial de cada app | Al abrir "Actualizar e instalar" en Aplicaciones, y al instalar o actualizar una app |
+| Ver, instalar o actualizar apps | winget (los orígenes de apps de Microsoft) y la web oficial de cada app | Al abrir "Actualizar e instalar" en Aplicaciones o pulsar "Comprobar" en el menú de la bandeja, y al instalar o actualizar una app |
 | Bloquear anuncios y rastreadores | La lista pública de `raw.githubusercontent.com/StevenBlack/hosts` | Al activar el bloqueo |
 | Medir la velocidad del DNS y la latencia | Los servidores DNS y la dirección que elijas | Al pulsar "Medir" |
 

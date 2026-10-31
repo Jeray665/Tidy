@@ -20,7 +20,9 @@
                 <StackPanel x:Name="Rail">
                     <ui:Button Tag="0" Width="40" Height="40" Padding="0" Margin="0,0,0,6" BorderThickness="0" Icon="{ui:SymbolIcon Gauge24}" ToolTip="Resumen" Click="Section_Click" />
                     <ui:Button Tag="1" Width="40" Height="40" Padding="0" Margin="0,0,0,6" BorderThickness="0" Icon="{ui:SymbolIcon TopSpeed24}" ToolTip="Rendimiento" Click="Section_Click" />
-                    <ui:Button Tag="2" Width="40" Height="40" Padding="0" Margin="0,0,0,6" BorderThickness="0" Icon="{ui:SymbolIcon Broom24}" ToolTip="Limpieza" Click="Section_Click" />
+                    <ui:Button Tag="2" Width="40" Height="40" Padding="0" Margin="0,0,0,6" BorderThickness="0" Icon="{ui:SymbolIcon AppsList24}" ToolTip="Programas" Click="Section_Click" />
+                    <ui:Button Tag="3" Width="40" Height="40" Padding="0" Margin="0,0,0,6" BorderThickness="0" Icon="{ui:SymbolIcon Broom24}" ToolTip="Limpieza" Click="Section_Click" />
+                    <ui:Button Tag="4" Width="40" Height="40" Padding="0" Margin="0,0,0,6" BorderThickness="0" Icon="{ui:SymbolIcon ShieldCheckmark24}" ToolTip="Estado" Click="Section_Click" />
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -85,22 +87,154 @@
                     </StackPanel>
                     <ui:ToggleSwitch x:Name="GameAuto" HorizontalAlignment="Right" Click="GameAuto_Click" />
                 </Grid>
-                <ui:HyperlinkButton Content="Más opciones de rendimiento" Padding="2,6" Margin="0,10,0,0" Click="MorePerf_Click" />
+                <ui:Button x:Name="GameNowBtn" HorizontalAlignment="Stretch" Padding="0,8" Margin="0,12,0,0"
+                           Icon="{ui:SymbolIcon Games24}" Click="GameNow_Click" />
+                <ui:HyperlinkButton Content="Más opciones de rendimiento" Padding="2,6" Margin="0,8,0,0" Click="MorePerf_Click" />
             </StackPanel>
 
-            <!-- 2: cleanup (only shows the size; the list and the confirmation are in the main window) -->
+            <!-- 2: programs: what's using the most right now, and what starts with Windows -->
+            <StackPanel x:Name="AppsPanel" Visibility="Collapsed">
+                <Grid Margin="2,0,0,6">
+                    <TextBlock Text="Lo que más gasta ahora" Style="{StaticResource Muted}" VerticalAlignment="Center" />
+                    <ui:Button x:Name="TopRefresh" HorizontalAlignment="Right" Appearance="Transparent" Padding="4" BorderThickness="0"
+                               Icon="{ui:SymbolIcon ArrowSync24}" ToolTip="Volver a medir" Click="TopRefresh_Click" />
+                </Grid>
+                <StackPanel x:Name="TopList" />
+                <TextBlock x:Name="TopNote" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="2,4,0,0" />
+                <Separator Margin="0,12,0,10" />
+                <TextBlock Text="Arrancan con Windows" Style="{StaticResource Muted}" Margin="2,0,0,6" />
+                <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="StartupList" Margin="0,0,6,0" />
+                </ScrollViewer>
+                <ui:HyperlinkButton Content="Más sobre el inicio de Windows" Padding="2,6" Margin="0,8,0,0" Click="MoreStartup_Click" />
+            </StackPanel>
+
+            <!-- 3: cleanup. Nothing is deleted without the exact list on screen and a click on "Borrar definitivamente" -->
             <StackPanel x:Name="CleanPanel" Visibility="Collapsed">
-                <Border Style="{StaticResource Tile}" Padding="16,14">
+                <StackPanel x:Name="CleanMain">
+                    <StackPanel x:Name="Disks" />
+                    <Border Style="{StaticResource Tile}" Padding="14,12" Margin="0,6,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Se puede liberar" Style="{StaticResource Muted}" />
+                            <TextBlock x:Name="CleanSize" Text="Calculando…" FontSize="22" FontWeight="SemiBold" />
+                            <StackPanel x:Name="CleanCats" Margin="0,8,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <ui:Button x:Name="CleanBtn" Appearance="Primary" HorizontalAlignment="Stretch" Padding="0,10" Margin="0,10,0,0" FontSize="14"
+                               Icon="{ui:SymbolIcon Broom24}" Content="Revisar y limpiar" IsEnabled="False" Click="CleanReview_Click" />
+                    <TextBlock x:Name="CleanResult" Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Margin="4,6,4,0" Visibility="Collapsed" />
+                    <Grid Margin="2,12,0,0">
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,90,0">
+                            <TextBlock Text="Papelera de reciclaje" FontSize="13" />
+                            <TextBlock x:Name="RecycleSize" Style="{StaticResource Muted}" FontSize="11" Text="Calculando…" />
+                        </StackPanel>
+                        <ui:Button x:Name="RecycleBtn" HorizontalAlignment="Right" Content="Vaciar…" IsEnabled="False" Click="Recycle_Click" />
+                    </Grid>
+                    <Separator Margin="0,12,0,10" />
+                    <Grid Margin="2,0,0,0">
+                        <TextBlock Text="Limpieza programada" FontSize="13" VerticalAlignment="Center" />
+                        <ComboBox x:Name="ScheduleBox" HorizontalAlignment="Right" Width="150" SelectionChanged="Schedule_Changed">
+                            <ComboBoxItem Content="Nada" />
+                            <ComboBoxItem Content="Avisarme" />
+                            <ComboBoxItem Content="Limpiar solo" />
+                        </ComboBox>
+                    </Grid>
+                    <TextBlock x:Name="ScheduleNote" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="2,6,0,0" />
+                    <TextBlock x:Name="CleanLast" Style="{StaticResource Muted}" FontSize="11" Margin="2,2,0,0" />
+                </StackPanel>
+
+                <StackPanel x:Name="CleanConfirm" Visibility="Collapsed">
+                    <TextBlock x:Name="ConfirmTitle" FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap" />
+                    <TextBlock Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="Se borrarán de forma definitiva estos archivos. Revisa la lista; si algo no te cuadra, cancela." />
+                    <TextBlock x:Name="ConfirmRecycle" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0" Visibility="Collapsed"
+                               Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                               Text="La papelera se vaciará: esos archivos ya no se podrán recuperar." />
+                    <ListBox x:Name="ConfirmList" Height="240" Margin="0,10,0,6" Style="{StaticResource FileList}" />
+                    <TextBlock x:Name="ConfirmCopy" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" />
+                    <UniformGrid Columns="2" Margin="0,12,0,0">
+                        <ui:Button Content="Cancelar" HorizontalAlignment="Stretch" Margin="0,0,4,0" Click="ConfirmCancel_Click" />
+                        <ui:Button x:Name="ConfirmBtn" Appearance="Danger" Content="Borrar definitivamente" HorizontalAlignment="Stretch" Margin="4,0,0,0" Click="ConfirmClean_Click" />
+                    </UniformGrid>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- 4: status -->
+            <StackPanel x:Name="StatusPanel" Visibility="Collapsed">
+                <Border Style="{StaticResource Tile}" Padding="14,10" Margin="0,0,0,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SymbolIcon x:Name="SecIcon" Symbol="ShieldCheckmark24" FontSize="22" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                            <TextBlock Text="Seguridad" FontSize="13" FontWeight="SemiBold" />
+                            <TextBlock x:Name="SecText" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Text="Revisando…" />
+                        </StackPanel>
+                        <ui:Button Grid.Column="2" Content="Ver" VerticalAlignment="Center" Click="Security_Click" />
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource Tile}" Padding="14,10" Margin="0,0,0,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="22" VerticalAlignment="Top" Margin="0,2,0,0" />
+                        <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                            <TextBlock Text="Actualizaciones" FontSize="13" FontWeight="SemiBold" />
+                            <TextBlock x:Name="UpdApps" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" />
+                            <TextBlock x:Name="UpdDrivers" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" />
+                            <TextBlock x:Name="UpdTidy" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Visibility="Collapsed" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                            <ui:Button x:Name="UpdCheckBtn" Content="Comprobar" HorizontalAlignment="Stretch" Click="UpdCheck_Click" ToolTip="Pregunta a winget qué apps tienen versión nueva" />
+                            <ui:Button Content="Ver" HorizontalAlignment="Stretch" Margin="0,4,0,0" Click="Updates_Click" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource Tile}" Padding="14,10" Margin="0,0,0,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SymbolIcon Symbol="Timer24" FontSize="22" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                            <TextBlock Text="Último arranque" FontSize="13" FontWeight="SemiBold" />
+                            <TextBlock x:Name="BootText" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Text="—" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Border Style="{StaticResource Tile}" Padding="14,10">
                     <StackPanel>
-                        <TextBlock Text="Se puede liberar" Style="{StaticResource Muted}" />
-                        <TextBlock x:Name="CleanSize" Text="Calculando…" FontSize="24" FontWeight="SemiBold" />
-                        <TextBlock x:Name="CleanLast" Style="{StaticResource Muted}" FontSize="12" Margin="0,4,0,0" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Symbol="History24" FontSize="22" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                                <TextBlock Text="Lo último que se puede deshacer" FontSize="13" FontWeight="SemiBold" />
+                                <TextBlock x:Name="LastTitle" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Text="—" />
+                            </StackPanel>
+                            <ui:Button x:Name="UndoBtn" Grid.Column="2" VerticalAlignment="Center" Visibility="Collapsed" Click="Undo_Click" />
+                        </Grid>
+                        <StackPanel x:Name="UndoConfirm" Visibility="Collapsed" Margin="0,10,0,0">
+                            <TextBlock x:Name="UndoText" FontSize="12" TextWrapping="Wrap" />
+                            <UniformGrid Columns="2" Margin="0,10,0,0">
+                                <ui:Button Content="Cancelar" HorizontalAlignment="Stretch" Margin="0,0,4,0" Click="UndoCancel_Click" />
+                                <ui:Button x:Name="UndoYes" Appearance="Primary" HorizontalAlignment="Stretch" Margin="4,0,0,0" Click="UndoYes_Click" />
+                            </UniformGrid>
+                        </StackPanel>
+                        <TextBlock x:Name="UndoResult" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" Visibility="Collapsed" />
                     </StackPanel>
                 </Border>
-                <ui:Button Appearance="Primary" HorizontalAlignment="Stretch" Padding="0,11" Margin="0,14,0,0" FontSize="14"
-                           Icon="{ui:SymbolIcon Broom24}" Content="Ver la lista y limpiar…" Click="Clean_Click" />
-                <TextBlock Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" TextAlignment="Center" Margin="4,8,4,0"
-                           Text="Se abre Tidy con la lista de archivos. No se borra nada sin que lo confirmes." />
+                <ui:HyperlinkButton Content="Ver todo el historial" Padding="2,6" Margin="0,6,0,0" Click="History_Click" />
             </StackPanel>
         </StackPanel>
     </Grid>
