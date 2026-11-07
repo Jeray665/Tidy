@@ -2155,6 +2155,7 @@
  "Cancelado. Las copias ya terminadas se quedan (puedes mandarlas a la Papelera desde Historial); la que estaba a medias no se guarda.": "已取消。已完成的副本会保留（可以在“历史”中将它们移到回收站）；进行到一半的不会保存。",
  "Convirtiendo": "Convirtiendo",
  "No se ha podido crear ninguna copia: mira el motivo en cada archivo.": "没能创建任何副本：请查看每个文件的原因。",
+ "Tidy ya no se cierra con un error del sistema (0xc0000005) al actualizar el driver de NVIDIA: mientras se instala un driver deja de leer la gráfica y vuelve a hacerlo al terminar.": "更新 NVIDIA 驱动时，Tidy 不再因系统错误（0xc0000005）而关闭：安装驱动期间它会停止读取显卡，安装完成后再恢复。",
  "Menú de la bandeja: nueva sección Programas, con lo que más gasta ahora (lo cierras con dos clics, y si tiene algo sin guardar te lo pregunta) y las apps que arrancan con Windows, cada una con su interruptor.": "托盘菜单：新增“程序”分区，显示当前占用最多的程序（两次点击即可关闭；如有未保存的内容会先询问你）以及随 Windows 启动的应用，每个都有自己的开关。",
  "Menú de la bandeja: limpia sin abrir Tidy. Ves el espacio libre de cada disco, marcas qué limpiar, revisas la lista exacta de archivos y confirmas. También vacía la Papelera y cambia la limpieza programada.": "托盘菜单：无需打开 Tidy 即可清理。查看每个磁盘的可用空间，勾选要清理的内容，检查确切的文件列表并确认。还可以清空回收站和更改定期清理。",
  "Menú de la bandeja: nueva sección Estado, con la revisión de seguridad, las actualizaciones pendientes de apps, drivers y Tidy, el tiempo del último arranque y un botón para deshacer lo último.": "托盘菜单：新增“状态”分区，包含安全检查、应用/驱动/Tidy 的待更新项、上次开机耗时，以及撤销最近一次更改的按钮。",

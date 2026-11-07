@@ -1,5 +1,8 @@
 # Novedades de Tidy
 
+## 1.3.1
+- Tidy ya no se cierra con un error del sistema (0xc0000005) al actualizar el driver de NVIDIA: mientras se instala un driver deja de leer la gráfica y vuelve a hacerlo al terminar.
+
 ## 1.3.0
 - Menú de la bandeja: nueva sección Programas, con lo que más gasta ahora (lo cierras con dos clics, y si tiene algo sin guardar te lo pregunta) y las apps que arrancan con Windows, cada una con su interruptor.
 - Menú de la bandeja: limpia sin abrir Tidy. Ves el espacio libre de cada disco, marcas qué limpiar, revisas la lista exacta de archivos y confirmas. También vacía la Papelera y cambia la limpieza programada.

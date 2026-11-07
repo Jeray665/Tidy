@@ -33,33 +33,72 @@ public static class SysMon
     }
 
     static IntPtr _gpu;
-    static bool _nvmlTried;
+    static DateTime _nvmlRetry = DateTime.MinValue;
+    static readonly object _gpuLock = new();
 
-    /// <summary>First NVIDIA GPU via NVML, or null when there's no NVIDIA driver.</summary>
+    /// <summary>
+    /// First NVIDIA GPU via NVML, or null when there's no NVIDIA driver.
+    /// NVML crashes the whole process (access violation, not catchable) if it's asked while its driver is being replaced,
+    /// so it's left alone while any driver installer runs and reconnected afterwards.
+    /// </summary>
     public static GpuStat? Gpu()
     {
-        try
+        lock (_gpuLock)
         {
-            if (!_nvmlTried)
+            try
             {
-                _nvmlTried = true;
-                if (Native.nvmlInit_v2() != 0 || Native.nvmlDeviceGetHandleByIndex_v2(0, out _gpu) != 0) _gpu = IntPtr.Zero;
+                if (DriverInstalling())
+                {
+                    _gpu = IntPtr.Zero;
+                    _nvmlRetry = DateTime.Now.AddSeconds(30); // let the new driver settle before asking again
+                    return null;
+                }
+                if (_gpu == IntPtr.Zero)
+                {
+                    if (DateTime.Now < _nvmlRetry) return null;
+                    _nvmlRetry = DateTime.Now.AddMinutes(1);
+                    if (Native.nvmlInit_v2() != 0 || Native.nvmlDeviceGetHandleByIndex_v2(0, out _gpu) != 0) { _gpu = IntPtr.Zero; return null; }
+                }
+                // any error here (GPU lost, driver reloaded…) drops the handle; it's looked up again a minute later
+                if (Native.nvmlDeviceGetTemperature(_gpu, 0, out var t) != 0) { _gpu = IntPtr.Zero; return null; }
+                Native.nvmlDeviceGetUtilizationRates(_gpu, out var u);
+                Native.nvmlDeviceGetMemoryInfo(_gpu, out var mem);
+                uint? fan = Native.nvmlDeviceGetFanSpeed(_gpu, out var f) == 0 ? f : null;
+                double? watts = Native.nvmlDeviceGetPowerUsage(_gpu, out var mw) == 0 ? mw / 1000.0 : null;
+                const double gb = 1L << 30;
+                return new GpuStat(t, u.Gpu, mem.Used / gb, mem.Total / gb, fan, watts);
             }
-            if (_gpu == IntPtr.Zero) return null;
-            Native.nvmlDeviceGetTemperature(_gpu, 0, out var t);
-            Native.nvmlDeviceGetUtilizationRates(_gpu, out var u);
-            Native.nvmlDeviceGetMemoryInfo(_gpu, out var mem);
-            uint? fan = Native.nvmlDeviceGetFanSpeed(_gpu, out var f) == 0 ? f : null;
-            double? watts = Native.nvmlDeviceGetPowerUsage(_gpu, out var mw) == 0 ? mw / 1000.0 : null;
-            const double gb = 1L << 30;
-            return new GpuStat(t, u.Gpu, mem.Used / gb, mem.Total / gb, fan, watts);
-        }
-        catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException)
-        {
-            _gpu = IntPtr.Zero;
-            return null;
+            catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException)
+            {
+                _gpu = IntPtr.Zero;
+                _nvmlRetry = DateTime.MaxValue; // no NVIDIA driver on this PC
+                return null;
+            }
         }
     }
+
+    /// <summary>Windows installing a driver (drvinst), NVIDIA's installer from its site or the NVIDIA App, or one Tidy downloaded.</summary>
+    static bool DriverInstalling()
+    {
+        foreach (var p in System.Diagnostics.Process.GetProcesses())
+            using (p)
+            {
+                var name = p.ProcessName;
+                if (name.Equals("drvinst", StringComparison.OrdinalIgnoreCase)) return true;
+                if (!InstallerName.IsMatch(name)) continue;
+                if (IsDriverInstaller(name, Native.ProcessPath(p.Id))) return true;
+            }
+        return false;
+    }
+
+    static readonly System.Text.RegularExpressions.Regex InstallerName = new(@"setup|install|^nvi2|-dch-|whql",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>An installer process that may replace the NVIDIA driver under us. Public for the tests.</summary>
+    public static bool IsDriverInstaller(string name, string? path) =>
+        name.Equals("drvinst", StringComparison.OrdinalIgnoreCase)
+        || InstallerName.IsMatch(name) && path != null
+           && (path.Contains(@"\NVIDIA", StringComparison.OrdinalIgnoreCase) || path.StartsWith(Store.DownloadsDir, StringComparison.OrdinalIgnoreCase));
 }
 
 public record Snapshot(double Cpu, int RamPct, double RamUsedGb, double RamTotalGb, GpuStat? Gpu);

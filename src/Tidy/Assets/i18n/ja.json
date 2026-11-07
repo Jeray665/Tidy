@@ -2155,6 +2155,7 @@
  "Cancelado. Las copias ya terminadas se quedan (puedes mandarlas a la Papelera desde Historial); la que estaba a medias no se guarda.": "キャンセルしました。完成したコピーは残ります（「履歴」からごみ箱に送れます）。途中だったものは保存されません。",
  "Convirtiendo": "Convirtiendo",
  "No se ha podido crear ninguna copia: mira el motivo en cada archivo.": "コピーを 1 つも作成できませんでした。各ファイルの理由を確認してください。",
+ "Tidy ya no se cierra con un error del sistema (0xc0000005) al actualizar el driver de NVIDIA: mientras se instala un driver deja de leer la gráfica y vuelve a hacerlo al terminar.": "NVIDIA ドライバーの更新中に Tidy がシステム エラー（0xc0000005）で終了しなくなりました。ドライバーのインストール中はグラフィックス カードの読み取りを止め、終わったら再開します。",
  "Menú de la bandeja: nueva sección Programas, con lo que más gasta ahora (lo cierras con dos clics, y si tiene algo sin guardar te lo pregunta) y las apps que arrancan con Windows, cada una con su interruptor.": "トレイメニュー：新しい「プログラム」セクション。今いちばん使っているもの（2 回のクリックで閉じられ、保存していない作業があれば確認されます）と、Windows と一緒に起動するアプリをそれぞれのスイッチ付きで表示します。",
  "Menú de la bandeja: limpia sin abrir Tidy. Ves el espacio libre de cada disco, marcas qué limpiar, revisas la lista exacta de archivos y confirmas. También vacía la Papelera y cambia la limpieza programada.": "トレイメニュー：Tidy を開かずにクリーンアップ。各ディスクの空き容量を確認し、消すものを選び、正確なファイル一覧を見て確定します。ごみ箱を空にしたり、定期クリーンアップを変更したりもできます。",
  "Menú de la bandeja: nueva sección Estado, con la revisión de seguridad, las actualizaciones pendientes de apps, drivers y Tidy, el tiempo del último arranque y un botón para deshacer lo último.": "トレイメニュー：新しい「状態」セクション。セキュリティ チェック、アプリ・ドライバー・Tidy の保留中の更新、前回の起動時間、直前の変更を元に戻すボタンがあります。",

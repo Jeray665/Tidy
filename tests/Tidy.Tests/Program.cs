@@ -435,6 +435,13 @@ var running = Path.Combine(swapDir, "Tidy.exe"); File.WriteAllText(running, "old
 var newer = Path.Combine(sandbox, "new.exe"); File.WriteAllText(newer, "new");
 using (File.Open(running, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete)) Install.ReplaceExe(newer, running);
 Check(File.ReadAllText(running) == "new" && File.ReadAllText(Path.Combine(swapDir, "Tidy.old.exe")) == "old", "actualizar: cambia el .exe aunque esté abierto y guarda el anterior");
+Check(SysMon.IsDriverInstaller("drvinst", null)
+    && SysMon.IsDriverInstaller("setup", @"C:\NVIDIA\DisplayDriver\591.86\Win11_x64\International\setup.exe")
+    && SysMon.IsDriverInstaller("591.86-desktop-win10-win11-64bit-international-dch-whql", Path.Combine(Store.DownloadsDir, "591.86-desktop-win10-win11-64bit-international-dch-whql.exe"))
+    && !SysMon.IsDriverInstaller("setup", @"C:\Users\x\Downloads\otro\setup.exe")
+    && !SysMon.IsDriverInstaller("nvcontainer", @"C:\Program Files\NVIDIA Corporation\NvContainer\nvcontainer.exe")
+    && !SysMon.IsDriverInstaller("NVIDIA app", @"C:\Program Files\NVIDIA Corporation\NVIDIA app\CEF\NVIDIA app.exe"),
+    "gráfica: deja de leerla mientras se instala un driver (si no, Tidy se cierra), y solo entonces");
 var body = "- New thing\n\n**Tidy-Setup.exe** installs.\n\n<details><summary>Español</summary>\n\n- Cosa nueva\n\n</details>\n";
 Check(Changelog.NotesFor(body, false) == "- New thing\n\n**Tidy-Setup.exe** installs." && Changelog.NotesFor(body, true) == "- Cosa nueva"
     && Changelog.NotesFor("- Solo español", false) == "- Solo español", "notas de versión: inglés por defecto, español plegado, las antiguas enteras");
