@@ -154,7 +154,11 @@ public partial class TrayFlyout : FluentWindow
             foreach (var app in top) TopList.Children.Add(TopRow(app));
             TopNote.Text = top.Count == 0 ? "No hay programas tuyos gastando ahora mismo." : "Los procesos de Windows no salen aquí: no se deben cerrar.";
         }
-        catch (Exception ex) { TopNote.Text = "No se pudo medir."; Store.Log($"Tray: top programs failed: {ex.Message}"); }
+        catch (Exception ex)
+        {
+            TopNote.Text = "No se pudo medir.";
+            Store.Log($"Tray: top programs failed: {ex.Message}");
+        }
         finally { TopRefresh.IsEnabled = true; }
     }
 
