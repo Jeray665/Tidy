@@ -93,15 +93,17 @@ public static class Services
 
     static string Mode(string name, string wmi) => wmi switch
     {
-        "Auto" => Equals(Reg(name)?.GetValue("DelayedAutostart"), 1) ? "Automático (retrasado)" : "Automático",
+        "Auto" => Delayed(name) ? "Automático (retrasado)" : "Automático",
         "Manual" => "Manual",
         "Disabled" => "Deshabilitado",
         "Boot" or "System" => "Sistema",
         _ => wmi,
     };
 
-    static RegistryKey? Reg(string name, bool write = false) =>
-        RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64).OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{name}", write);
+    static bool Delayed(string name) { using var k = Reg(name); return Equals(k?.GetValue("DelayedAutostart"), 1); }
+
+    // Tidy is 64-bit: Registry.LocalMachine is the 64-bit view (and never needs closing)
+    static RegistryKey? Reg(string name, bool write = false) => Registry.LocalMachine.OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{name}", write);
 
     public static bool IsProtected(string name, string mode) =>
         Critical.Contains(name) || UserInstance.IsMatch(name) || mode == "Sistema" || !SafeName.IsMatch(name);

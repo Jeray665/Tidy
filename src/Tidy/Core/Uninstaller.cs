@@ -163,9 +163,17 @@ public static class Uninstaller
             return code == 0 ? (true, "") : (false, output.Trim());
         }
         string exe, args;
-        var msi = p.MsiCode ?? (p.UninstallString.Contains("msiexec", StringComparison.OrdinalIgnoreCase) ? MsiGuid.Match(p.UninstallString).Value : "");
+        var msi = MsiOf(p);
         if (msi != "") { exe = Path.Combine(Environment.SystemDirectory, "msiexec.exe"); args = $"/x {msi}"; }
         else if (!SplitCommand(p.UninstallString, out exe, out args)) return (false, "No se encuentra el desinstalador del programa (puede que ya esté borrado). Puedes eliminar sus restos igualmente.");
+        if (RunsUnelevated(p))
+        {
+            // the command comes from HKCU, which any program of this user can write: never run it with admin rights
+            var (exit, error) = await Task.Run(() => Native.RunAsShellUser(exe, args, Timeout.Infinite, visible: true));
+            if (exit == null) { Store.Log($"Uninstall: {p.Name} not started without admin: {error}"); return (false, $"No se pudo abrir sin permisos de administrador: {error}."); }
+            Store.Log($"Uninstaller of {p.Name} (without admin) exited with code {exit}");
+            return (true, "");
+        }
         try
         {
             using var proc = Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe)! })!;
@@ -175,6 +183,11 @@ public static class Uninstaller
         }
         catch (Exception e) { return (false, e.Message); }
     }
+
+    static string MsiOf(InstalledProgram p) => p.MsiCode ?? (p.UninstallString.Contains("msiexec", StringComparison.OrdinalIgnoreCase) ? MsiGuid.Match(p.UninstallString).Value : "");
+
+    /// <summary>Per-user (HKCU) non-MSI uninstallers run as the signed-in user; MSI goes through System32's msiexec, which is safe elevated.</summary>
+    public static bool RunsUnelevated(InstalledProgram p) => !p.IsStore && p.RegKey?.StartsWith("HKCU", StringComparison.Ordinal) == true && MsiOf(p) == "";
 
     /// <summary>"C:\x\unins000.exe" /SILENT  →  exe + args. The exe must exist.</summary>
     public static bool SplitCommand(string cmd, out string exe, out string args)
@@ -289,6 +302,16 @@ public static class Uninstaller
         var names = Names(p).ToHashSet();
         var publisher = PublisherNorm(p);
         var opts = new EnumerationOptions { IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
+        // one shell object for every shortcut of this search (there are hundreds in the Start menus)
+        object? shell = null;
+        try { shell = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!); } catch { }
+        var into = p.InstallLocation != "" && !IsProtectedPath(p.InstallLocation) ? p.InstallLocation.TrimEnd('\\') + "\\" : null;
+        bool PointsInto(string lnk)
+        {
+            if (into is not { } dir || shell is not { } sh) return false;
+            try { return ((dynamic)sh).CreateShortcut(lnk).TargetPath is string target && target.StartsWith(dir, StringComparison.OrdinalIgnoreCase); }
+            catch { return false; }
+        }
 
         // install folder itself
         if (p.InstallLocation != "" && Directory.Exists(p.InstallLocation) && !IsProtectedPath(p.InstallLocation) && !IsLink(p.InstallLocation))
@@ -315,13 +338,13 @@ public static class Uninstaller
             // start-menu shortcuts that point into the install folder
             if (cat == "Accesos directos")
                 foreach (var lnk in Directory.EnumerateFiles(root, "*.lnk", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint }))
-                    if (PointsInto(lnk, p) || names.Contains(Norm(Path.GetFileNameWithoutExtension(lnk))))
+                    if (PointsInto(lnk) || names.Contains(Norm(Path.GetFileNameWithoutExtension(lnk))))
                         Add(new() { Kind = LeftoverKind.File, Target = lnk, Category = cat, Reason = "Acceso directo", Size = new FileInfo(lnk).Length });
         }
         foreach (var desk in new[] { Up(Environment.SpecialFolder.Desktop), Up(Environment.SpecialFolder.CommonDesktopDirectory) })
             if (Directory.Exists(desk))
                 foreach (var lnk in Directory.EnumerateFiles(desk, "*.lnk", opts))
-                    if (PointsInto(lnk, p)) Add(new() { Kind = LeftoverKind.File, Target = lnk, Category = "Accesos directos", Reason = "Acceso directo del escritorio", Size = new FileInfo(lnk).Length });
+                    if (PointsInto(lnk)) Add(new() { Kind = LeftoverKind.File, Target = lnk, Category = "Accesos directos", Reason = "Acceso directo del escritorio", Size = new FileInfo(lnk).Length });
 
         // Store app data
         if (p.PackageFamily != null)
@@ -409,23 +432,6 @@ public static class Uninstaller
                 .Sum(f => { try { return f.Length; } catch { return 0L; } });
         }
         catch { return 0; }
-    }
-
-    static bool PointsInto(string lnk, InstalledProgram p)
-    {
-        if (p.InstallLocation == "" || IsProtectedPath(p.InstallLocation)) return false;
-        var target = LinkTarget(lnk);
-        return target != null && target.StartsWith(p.InstallLocation.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
-    }
-
-    static string? LinkTarget(string lnk)
-    {
-        try
-        {
-            dynamic sh = Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;
-            return (string)sh.CreateShortcut(lnk).TargetPath;
-        }
-        catch { return null; }
     }
 
     // ---------- registry helpers ----------

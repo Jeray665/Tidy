@@ -78,6 +78,17 @@ Check(Directory.Exists(junction) && File.Exists(Path.Combine(junction, "victim.t
 Check(report.Deleted == 3 && report.Skipped == 1, $"limpieza: informe correcto ({report.Deleted} borrados, {report.Skipped} omitidos)");
 Check(File.ReadAllText(report.ListFile).Contains("old.tmp"), "limpieza: guarda la lista de lo borrado");
 
+// a folder swapped for a junction between the scan and the delete must not redirect the delete
+var root2 = Path.Combine(sandbox, "cache2"); var swapped = Path.Combine(root2, "sub"); var outside2 = Path.Combine(sandbox, "precious2");
+Directory.CreateDirectory(swapped); Directory.CreateDirectory(outside2);
+F(Path.Combine(swapped, "old.tmp"), 3);
+var victim2 = F(Path.Combine(outside2, "old.tmp"), 3);
+var scan2 = Cleaner.Scan(new CleanCategory { Id = "t2", Name = "t2", Description = "", Icon = "", MinAge = TimeSpan.FromHours(24), Roots = () => [root2] });
+Directory.Delete(swapped, true);
+Process.Start(new ProcessStartInfo("cmd.exe", $"/c mklink /J \"{swapped}\" \"{outside2}\"") { CreateNoWindow = true, UseShellExecute = false })!.WaitForExit();
+var report2 = Cleaner.Clean([scan2]);
+Check(scan2.Items.Count == 1 && File.Exists(victim2) && report2.Deleted == 0, "limpieza: carpeta cambiada por un junction tras el escaneo NO redirige el borrado");
+
 // recycle-bin style dir item containing a junction: delete must not follow it
 var rb = Path.Combine(sandbox, "rb"); var payload = Path.Combine(rb, "$RABC123");
 Directory.CreateDirectory(payload); F(Path.Combine(payload, "f.txt"), 0);
@@ -88,6 +99,30 @@ rbScan.Items.Add(new CleanItem { Path = payload, Display = payload, IsDir = true
 Cleaner.Clean([rbScan]);
 Check(!Directory.Exists(payload), "papelera: borra la carpeta que contiene un junction");
 Check(File.Exists(victim), "papelera: NO sigue el junction de dentro (destino intacto)");
+
+// the handle check alone (not LinkInPath) must stop a delete that goes through a junction inside the item path
+var root3 = Path.Combine(sandbox, "cache3"); var outside3 = Path.Combine(sandbox, "precious3");
+Directory.CreateDirectory(root3); Directory.CreateDirectory(outside3);
+var victim3 = F(Path.Combine(outside3, "f.tmp"), 3);
+Process.Start(new ProcessStartInfo("cmd.exe", $"/c mklink /J \"{Path.Combine(root3, "j")}\" \"{outside3}\"") { CreateNoWindow = true, UseShellExecute = false })!.WaitForExit();
+var scan3 = new ScanResult { Category = new CleanCategory { Id = "t3", Name = "t3", Description = "", Icon = "", Roots = () => [root3] } };
+scan3.Roots.Add(root3);
+scan3.Items.Add(new CleanItem { Path = Path.Combine(root3, "j", "f.tmp"), Display = "f.tmp", Size = 1 });
+var report3 = Cleaner.Clean([scan3]);
+Check(File.Exists(victim3) && report3.Deleted == 0, "limpieza: un archivo alcanzado por un junction DENTRO de la ruta NO se borra");
+
+// a file symlink at the item itself: the link is not followed (needs developer mode or admin to create)
+var root4 = Path.Combine(sandbox, "cache4"); Directory.CreateDirectory(root4);
+var symlink = Path.Combine(root4, "s.tmp");
+Process.Start(new ProcessStartInfo("cmd.exe", $"/c mklink \"{symlink}\" \"{victim3}\" >nul 2>&1") { CreateNoWindow = true, UseShellExecute = false })!.WaitForExit();
+if (File.Exists(symlink))
+{
+    var scan4 = new ScanResult { Category = scan3.Category };
+    scan4.Roots.Add(root4); scan4.Items.Add(new CleanItem { Path = symlink, Display = "s.tmp", Size = 1 });
+    Cleaner.Clean([scan4]);
+    Check(File.Exists(victim3), "limpieza: un symlink de archivo no se sigue (destino intacto)");
+}
+else Console.WriteLine("INFO  symlinks de archivo: no se pueden crear sin administrador, comprobación omitida");
 
 // ---- Tweaks: backup / undo restores the exact original state ----
 const string testKey = @"HKCU\Software\TidyTest";
@@ -101,14 +136,14 @@ var tw = new Tweak
 Check(!Tweaks.IsApplied(tw), "tweak: no aplicado al inicio");
 Tweaks.Apply(tw);
 Check(Tweaks.IsApplied(tw), "tweak: aplicado");
-Check(File.Exists(Path.Combine(Store.Dir, "tweaks-backup.json")), "tweak: copia de seguridad en disco");
+Check(File.Exists(Path.Combine(Store.SecureDir, "tweaks-backup.json")), "tweak: copia de seguridad en disco, en la carpeta solo-admin");
 Tweaks.Apply(tw); // applying twice must not overwrite the original backup
 Tweaks.Revert(tw);
 Check(Equals(Tweaks.Read(testKey, "Existing"), 5) && Equals(Tweaks.Read(testKey, "Text"), "hola") && Tweaks.Read(testKey, "Missing") == null,
       "tweak: deshacer restaura valores originales exactos (y borra el que no existía)");
-// tampered backup (it lives in a user-writable folder): undo must not write values the tweak doesn't own
+// tampered backup: undo must not write values the tweak doesn't own
 Tweaks.Apply(tw);
-var bpath = Path.Combine(Store.Dir, "tweaks-backup.json");
+var bpath = Path.Combine(Store.SecureDir, "tweaks-backup.json");
 File.WriteAllText(bpath, File.ReadAllText(bpath).Replace("\"test\": [", "\"test\": [{\"Key\":\"HKCU\\\\Software\\\\TidyTest\",\"Name\":\"Evil\",\"Kind\":\"dword\",\"Value\":\"1\"},"));
 Check(File.ReadAllText(bpath).Contains("Evil"), "sandbox: copia de seguridad manipulada");
 Tweaks.Revert(tw);
@@ -264,6 +299,14 @@ Check(new[] { @"HKCU\Software\Microsoft", @"HKLM64\SOFTWARE\Classes", @"HKCU\Sof
               @"HKLM64\SOFTWARE\Microsoft\Windows\CurrentVersion\Run", @"HKCU\Software\..\x" }.All(k => !Uninstaller.IsAllowedKey(k)), "desinstalador: claves de sistema RECHAZADAS");
 Check(Uninstaller.SplitCommand($"\"{Path.Combine(Environment.SystemDirectory, "notepad.exe")}\" /x", out var ue, out var ua) && ua == "/x" && ue.EndsWith("notepad.exe"), "desinstalador: separa ejecutable y argumentos");
 Check(!Uninstaller.SplitCommand(@"C:\no\existe.exe /S", out _, out _), "desinstalador: desinstalador inexistente no se ejecuta");
+{
+    InstalledProgram P(string key, string cmd = @"""C:\x\unins000.exe"" /S", string? msi = null, string? pkg = null) => new() { Name = "x", RegKey = key, UninstallString = cmd, MsiCode = msi, PackageFullName = pkg };
+    Check(Uninstaller.RunsUnelevated(P(@"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Foo")), "desinstalador: entrada de HKCU (no MSI) se ejecuta SIN administrador");
+    Check(!Uninstaller.RunsUnelevated(P(@"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{12345678-1234-1234-1234-123456789ABC}", "msiexec /x {12345678-1234-1234-1234-123456789ABC}"))
+        && !Uninstaller.RunsUnelevated(P(@"HKCU\x\{12345678-1234-1234-1234-123456789ABC}", "x.exe", "{12345678-1234-1234-1234-123456789ABC}")), "desinstalador: MSI de HKCU va por msiexec de System32 (elevado)");
+    Check(!Uninstaller.RunsUnelevated(P(@"HKLM64\SOFTWARE\x")) && !Uninstaller.RunsUnelevated(P(@"HKLM32\SOFTWARE\x")), "desinstalador: HKLM64 y HKLM32 siguen como antes (elevados)");
+    Check(!Uninstaller.RunsUnelevated(new InstalledProgram { Name = "s", PackageFullName = "Pkg_1.0_x64__abc" }), "desinstalador: apps de la Store no cambian");
+}
 
 var appDir = Path.Combine(sandbox, "TidyFakeApp123");
 Directory.CreateDirectory(Path.Combine(appDir, "bin"));
@@ -347,6 +390,24 @@ Check(Winget.Table("Nada").Count == 0, "winget: salida sin tabla = lista vacía"
 Check(Winget.Search("foo\" & calc.exe & \"").Count == 0 && Winget.Install("Evil\" --override \"x", "winget").Ok == false && Winget.Install("Git.Git", "file://x").Ok == false,
     "winget: búsquedas, ids u orígenes con comillas o raros RECHAZADOS antes de llamar a winget");
 Check(Winget.Catalog.Select(a => a.Id).Distinct().Count() == Winget.Catalog.Length, $"winget: catálogo de {Winget.Catalog.Length} apps sin duplicados");
+{
+    var wa = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WindowsApps");
+    var good = Path.Combine(wa, "Microsoft.DesktopAppInstaller_1.29.380.0_x64__8wekyb3d8bbwe");
+    Check(Winget.ValidExe(good, false) == Path.Combine(good, "winget.exe") && Winget.ValidExe(good.ToUpperInvariant(), false) != null, "winget: carpeta del paquete correcta aceptada");
+    Check(Winget.ValidExe(good.Replace("1.29.380.0", "9.9.9.9")) == null, "winget: carpeta que no existe (sin winget.exe) rechazada");
+    Check(new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Microsoft.DesktopAppInstaller_1.0_x64__8wekyb3d8bbwe"),
+                  Path.Combine(wa, "..", "Evil", "Microsoft.DesktopAppInstaller_1.0_x64__8wekyb3d8bbwe"), Path.Combine(wa, "Evil.Package_1.0_x64__8wekyb3d8bbwe"),
+                  Path.Combine(wa, "Microsoft.DesktopAppInstaller_1.0_x64__evilpublisher"), Path.Combine(good, "sub"), Path.Combine(wa, "Microsoft.DesktopAppInstaller_1.0_x64__8wekyb3d8bbwe", ".."),
+                  Path.Combine(wa, "Microsoft.DesktopAppInstallerX"), "", @"C:\Windows\System32" }.All(b => Winget.ValidExe(b, false) == null),
+        "winget: carpetas en el perfil, con .., de otro paquete o de otro editor RECHAZADAS");
+    Console.WriteLine($"INFO  winget resuelto: {(Winget.Available ? Winget.SafeExe ?? "(no resuelto)" : "(winget no instalado)")}");
+    if (Winget.Available)
+    {
+        var we = Winget.SafeExe;
+        Check(we != null && we.StartsWith(wa + "\\", StringComparison.OrdinalIgnoreCase) && File.Exists(we), "winget: se ejecuta el winget.exe real de Program Files\\WindowsApps, no el alias");
+        Check(we != null && Store.Run(we, "--version", 30_000).Exit == 0, "winget: --version desde la ruta protegida termina bien");
+    }
+}
 
 // ---- history (sandboxed secure folder) ----
 History.Add(HistoryKind.Tweak, "Prueba", "detalle", "tweak:test");

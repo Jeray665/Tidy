@@ -90,6 +90,13 @@ public static class Store
         MoveDir(Path.Combine(root, "datos"), SecureDir);
         MoveDir(Path.Combine(root, "descargas"), DownloadsDir);
         if (MoveDir(Path.Combine(SecureDir, "cuarentena"), Uninstaller.QuarantineRoot)) Uninstaller.RebaseQuarantines();
+        // up to 1.3.1 the tweaks backup sat where any program could edit it; undo writes its values back as administrator
+        string old = Path.Combine(Dir, "tweaks-backup.json"), now = Path.Combine(SecureDir, "tweaks-backup.json");
+        try
+        {
+            if (File.Exists(old) && !File.Exists(now)) { Directory.CreateDirectory(SecureDir); File.Move(old, now); Log($"Migrated {old} -> {now}"); }
+        }
+        catch (Exception e) { Log($"Tweaks backup migration failed: {e.Message}"); }
     }
 
     /// <summary>Installers Tidy downloaded itself (NVIDIA ~900 MB each, its own updates) are only needed for a few days.</summary>

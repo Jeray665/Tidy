@@ -135,12 +135,12 @@ public static class SecurityStatus
             dynamic session = Activator.CreateInstance(Type.GetTypeFromProgID("Microsoft.Update.Session")!)!;
             dynamic searcher = session.CreateUpdateSearcher();
             int count = searcher.GetTotalHistoryCount();
-            if (count > 0) foreach (dynamic h in searcher.QueryHistory(0, Math.Min(count, 20))) if ((int)h.ResultCode == 2) { DateTime d = h.Date; if (last == null || d > last) last = d; }
+            if (count > 0) foreach (dynamic h in searcher.QueryHistory(0, Math.Min(count, 20))) if ((int)h.ResultCode == 2) { var d = ((DateTime)h.Date).ToLocalTime(); if (last == null || d > last) last = d; } // Windows Update keeps them in UTC
         }
         catch { }
         if (last is { } l && DateTime.Now - l > TimeSpan.FromDays(45))
             return new("wu", "Windows Update", CheckState.Warning, $"La última actualización instalada es del {l:dd/MM/yyyy}.", "Busca actualizaciones: llevas más de mes y medio sin parches.", "ms-settings:windowsupdate", "Abrir Windows Update");
-        return new("wu", "Windows Update", CheckState.Ok, last is { } x ? $"Última actualización instalada: {x.ToLocalTime():dd/MM/yyyy}." : "Activo.", "");
+        return new("wu", "Windows Update", CheckState.Ok, last is { } x ? $"Última actualización instalada: {x:dd/MM/yyyy}." : "Activo.", "");
     }
 
     static SecurityCheck SecureBoot() => Reg(@"SYSTEM\CurrentControlSet\Control\SecureBoot\State", "UEFISecureBootEnabled") switch

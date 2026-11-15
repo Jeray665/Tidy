@@ -38,19 +38,26 @@ public partial class HomePage : Page
         }
     }
 
-    async Task Analyze()
+    // walking Temp, the error reports and the Windows Update cache takes seconds of disk: not on every visit to Inicio
+    static (long Bytes, DateTime At) _junk;
+
+    async Task Analyze(bool fresh = false)
     {
         var a = await Task.Run(() =>
         {
-            var junk = Cleaner.Categories.Where(c => c.DefaultOn).Select(Cleaner.Scan).Sum(r => r.Bytes);
+            if (fresh || DateTime.Now - _junk.At > TimeSpan.FromMinutes(5) || Store.Settings.LastClean > _junk.At) // a cleanup since then
+                _junk = (Cleaner.Categories.Where(c => c.DefaultOn).Select(Cleaner.Scan).Sum(r => r.Bytes), DateTime.Now);
+            var junk = _junk.Bytes;
             var drive = new DriveInfo(Path.GetPathRoot(Environment.SystemDirectory)!);
+            var applied = Tweaks.All.Where(Tweaks.IsApplied).ToHashSet(); // once: some checks ask the Task Scheduler
             return new
             {
                 Ram = SysMon.Ram(), Junk = junk, Drive = drive,
                 StartupOn = StartupApps.List().Count(x => x.Enabled),
-                PendingTweaks = Tweaks.All.Where(t => t.Recommended && Tweaks.Available(t) && !Tweaks.IsApplied(t)).ToList(),
-                AppliedTweaks = Tweaks.All.Count(Tweaks.IsApplied),
-                Autostart = Autostart.IsEnabled,
+                PendingTweaks = Tweaks.All.Where(t => t.Recommended && !applied.Contains(t) && Tweaks.Available(t)).ToList(),
+                AppliedTweaks = applied.Count,
+                // schtasks.exe is only started when the card could show at all
+                Autostart = Store.Settings.AutostartDismissed || Install.IsPortable || Autostart.IsEnabled,
                 Plan = PowerPlan.All().FirstOrDefault(p => p.Active)?.Name,
                 Machine = _machine ??= MachineLine(),
             };
@@ -149,7 +156,7 @@ public partial class HomePage : Page
         finally
         {
             OptimizeBtn.IsEnabled = true;
-            await Analyze();
+            await Analyze(fresh: true);
         }
     }
 

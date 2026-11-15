@@ -250,7 +250,9 @@ static class Native
 
     /// <summary>Starts exe with Explorer's token: the signed-in user without admin rights, as if opened from the desktop.
     /// Only Windows' own explorer.exe counts as that shell. Returns the exit code, or null (with the reason) if it couldn't start.</summary>
-    public static (int? Exit, string Error) RunAsShellUser(string exe, string args, int timeoutMs)
+    /// <param name="visible">Normal window and the exe's own folder as working directory (an interactive uninstaller), instead of hidden in System32.
+    /// timeoutMs = Timeout.Infinite waits for as long as it takes.</param>
+    public static (int? Exit, string Error) RunAsShellUser(string exe, string args, int timeoutMs, bool visible = false)
     {
         GetWindowThreadProcessId(GetShellWindow(), out var pid);
         var explorer = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
@@ -263,8 +265,8 @@ static class Native
             // TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_DEFAULT | TOKEN_ADJUST_SESSIONID, primary token
             if (!DuplicateTokenEx(token, 0x8 | 0x2 | 0x1 | 0x80 | 0x100, IntPtr.Zero, 2, 1, out user)) return (null, $"error {Marshal.GetLastWin32Error()}");
             var si = new STARTUPINFO { cb = Marshal.SizeOf<STARTUPINFO>() };
-            if (!CreateProcessWithTokenW(user, 0, exe, new System.Text.StringBuilder($"\"{exe}\" {args}"), 0x08000000 /* CREATE_NO_WINDOW */,
-                    IntPtr.Zero, Environment.SystemDirectory, ref si, out var pi))
+            if (!CreateProcessWithTokenW(user, 0, exe, new System.Text.StringBuilder($"\"{exe}\" {args}"), visible ? 0u : 0x08000000u /* CREATE_NO_WINDOW */,
+                    IntPtr.Zero, visible ? System.IO.Path.GetDirectoryName(exe) : Environment.SystemDirectory, ref si, out var pi))
                 return (null, $"error {Marshal.GetLastWin32Error()}");
             CloseHandle(pi.hThread);
             try
@@ -285,6 +287,60 @@ static class Native
             if (token != IntPtr.Zero) CloseHandle(token);
             if (proc != IntPtr.Zero) CloseHandle(proc);
         }
+    }
+
+    // ---------- files by handle (a delete can't be redirected by a folder swapped for a junction) ----------
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern Microsoft.Win32.SafeHandles.SafeFileHandle CreateFileW(string path, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern uint GetFinalPathNameByHandleW(Microsoft.Win32.SafeHandles.SafeFileHandle h, System.Text.StringBuilder path, uint len, uint flags);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool GetFileInformationByHandleEx(Microsoft.Win32.SafeHandles.SafeFileHandle h, int cls, out FILE_BASIC_INFO info, uint size);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool SetFileInformationByHandle(Microsoft.Win32.SafeHandles.SafeFileHandle h, int cls, ref FILE_BASIC_INFO info, uint size);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool SetFileInformationByHandle(Microsoft.Win32.SafeHandles.SafeFileHandle h, int cls, ref uint info, uint size);
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct FILE_BASIC_INFO { public long Created, Accessed, Written, Changed; public uint Attributes; }
+
+    /// <summary>Opens path itself (a link at the last component is not followed when noFollow). Invalid handle: in use, denied or gone.</summary>
+    public static Microsoft.Win32.SafeHandles.SafeFileHandle Open(string path, uint access, bool noFollow)
+    {
+        path = System.IO.Path.GetFullPath(path);
+        if (!path.StartsWith(@"\\")) path = @"\\?\" + path;
+        // share read|write|delete, OPEN_EXISTING, BACKUP_SEMANTICS (directories) [+ OPEN_REPARSE_POINT]
+        return CreateFileW(path, access, 7, IntPtr.Zero, 3, 0x02000000 | (noFollow ? 0x00200000u : 0), IntPtr.Zero);
+    }
+
+    /// <summary>Where the opened object really is (after resolving every folder on the way), or null (also for network paths).</summary>
+    public static string? FinalPath(Microsoft.Win32.SafeHandles.SafeFileHandle h)
+    {
+        var sb = new System.Text.StringBuilder(1024);
+        var n = GetFinalPathNameByHandleW(h, sb, (uint)sb.Capacity, 0);
+        if (n == 0 || n >= sb.Capacity) return null;
+        var p = sb.ToString();
+        return p.StartsWith(@"\\?\UNC\") ? null : p.StartsWith(@"\\?\") ? p[4..] : p;
+    }
+
+    /// <summary>FILE_ATTRIBUTE_* of the opened object itself, or null.</summary>
+    public static System.IO.FileAttributes? Attributes(Microsoft.Win32.SafeHandles.SafeFileHandle h) =>
+        GetFileInformationByHandleEx(h, 0 /* FileBasicInfo */, out var i, (uint)Marshal.SizeOf<FILE_BASIC_INFO>()) ? (System.IO.FileAttributes)i.Attributes : null;
+
+    /// <summary>Deletes the file this handle points to (needs DELETE | FILE_WRITE_ATTRIBUTES access).</summary>
+    public static bool DeleteByHandle(Microsoft.Win32.SafeHandles.SafeFileHandle h)
+    {
+        // FileDispositionInfoEx: DELETE | POSIX_SEMANTICS | IGNORE_READONLY_ATTRIBUTE
+        var flags = 0x1u | 0x2 | 0x10;
+        if (SetFileInformationByHandle(h, 21, ref flags, 4)) return true;
+        // older Windows or FAT/exFAT: clear read-only through the handle, then the classic disposition
+        if (Attributes(h) is { } a && a.HasFlag(System.IO.FileAttributes.ReadOnly))
+        {
+            var bi = new FILE_BASIC_INFO { Attributes = (uint)(a & ~System.IO.FileAttributes.ReadOnly) | (a == System.IO.FileAttributes.ReadOnly ? (uint)System.IO.FileAttributes.Normal : 0) }; // times 0 = unchanged
+            SetFileInformationByHandle(h, 0, ref bi, (uint)Marshal.SizeOf<FILE_BASIC_INFO>());
+        }
+        var del = 1u; // FILE_DISPOSITION_INFO { BOOLEAN DeleteFile } (class 4)
+        return SetFileInformationByHandle(h, 4, ref del, 1);
     }
 
     // ---------- Restart Manager: who has a file open ----------

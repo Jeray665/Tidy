@@ -13,9 +13,39 @@ public record CatalogApp(string Id, string Name, string Category, string Descrip
 /// </summary>
 public static class Winget
 {
-    /// <summary>The App Installer execution alias. Absolute path, no PATH lookup.</summary>
+    /// <summary>The App Installer execution alias. Only used to know winget is installed: it lives in a folder any
+    /// user-level program can write to, so Tidy (administrator) never executes it.</summary>
     public static string ExePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Microsoft\WindowsApps\winget.exe");
     public static bool Available => File.Exists(ExePath);
+
+    /// <summary>The real winget.exe in the package folder under Program Files\WindowsApps (only TrustedInstaller can write there), or null.</summary>
+    // only a found path is remembered: winget installed (or PowerShell slow) after Tidy started is found on the next try
+    public static string? SafeExe => _safe ??= Resolve();
+    static string? _safe;
+
+    static string? Resolve()
+    {
+        var (_, output) = Store.Run(Path.Combine(Environment.SystemDirectory, @"WindowsPowerShell\v1.0\powershell.exe"),
+            "-NoProfile -NonInteractive -Command \"(Get-AppxPackage Microsoft.DesktopAppInstaller).InstallLocation\"", 60_000);
+        var dir = output.Replace("\r", "").Split('\n').Select(l => l.Trim()).LastOrDefault(l => l != "");
+        var exe = dir == null ? null : ValidExe(dir);
+        if (exe == null) Store.Log($"winget: package folder not trusted, not running it ({dir ?? "none found"})");
+        return exe;
+    }
+
+    /// <summary>winget.exe inside <paramref name="folder"/> only if that is exactly Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*__8wekyb3d8bbwe.</summary>
+    public static string? ValidExe(string folder, bool mustExist = true)
+    {
+        if (string.IsNullOrWhiteSpace(folder) || folder.Contains("..")) return null;
+        var full = Path.GetFullPath(folder).TrimEnd('\\');
+        var apps = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WindowsApps");
+        var name = Path.GetFileName(full);
+        var ok = string.Equals(Path.GetDirectoryName(full), apps, StringComparison.OrdinalIgnoreCase)
+            && name.StartsWith("Microsoft.DesktopAppInstaller_", StringComparison.OrdinalIgnoreCase) && name.EndsWith("__8wekyb3d8bbwe", StringComparison.OrdinalIgnoreCase);
+        var exe = Path.Combine(full, "winget.exe");
+        return ok && (!mustExist || File.Exists(exe)) ? exe : null;
+    }
+
     const string Common = "--accept-source-agreements --disable-interactivity";
     static readonly Regex SafeId = new(@"^[\w.+-]{2,128}$");
     static readonly Regex SafeQuery = new(@"^[\w .+-]{2,60}$");
@@ -74,8 +104,8 @@ public static class Winget
 
     static string Run(string args, int timeoutMs = 120_000)
     {
-        if (!Available) return "";
-        return Store.Run(ExePath, args, timeoutMs).Output;
+        if (!Available || SafeExe is not { } exe) return "";
+        return Store.Run(exe, args, timeoutMs).Output;
     }
 
     public static List<WingetPackage> Upgrades()
@@ -129,13 +159,14 @@ public static class Winget
         if (!SafeId.IsMatch(id)) return (false, "Identificador no válido.");
         if (source is not (null or "winget" or "msstore")) return (false, "Origen no válido.");
         var args = $"{verb} --id \"{id}\" --exact {(source != null ? $"--source {source} " : "")}--silent {(verb == "uninstall" ? "" : "--accept-package-agreements ")}{Common}";
-        var (code, output) = Store.Run(ExePath, args, 20 * 60_000);
+        if (SafeExe is not { } exe) return (false, "winget no está disponible");
+        var (code, output) = Store.Run(exe, args, 20 * 60_000);
         // some installers refuse to run as administrator (Spicetify…), and winget won't touch per-user apps from an admin
         // context: the same command again as the normal user
         if (code is ProhibitsElevation or UserScopeFromAdmin)
         {
             Store.Log($"winget {verb} {id} -> {code}, sin administrador");
-            (code, output) = Store.RunUnelevated(ExePath, args, 20 * 60_000);
+            (code, output) = Store.RunUnelevated(exe, args, 20 * 60_000);
         }
         var lines = Clean(output);
         Store.Log($"winget {verb} {id} -> {code} {lines.LastOrDefault()}");

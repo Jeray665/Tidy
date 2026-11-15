@@ -73,7 +73,8 @@ public sealed class Tray : IDisposable
         Live.Updated += s => _app.Dispatcher.BeginInvoke(() =>
         {
             var text = $"Tidy · CPU {s.Cpu:0}% · RAM {s.RamPct}%" + (s.Gpu is { } g ? $" · GPU {g.TempC}°C" : "");
-            _icon.Text = text.Length > 127 ? text[..127] : text;
+            if (text.Length > 127) text = text[..127];
+            if (_icon.Text != text) _icon.Text = text; // every change makes the taskbar redraw the icon
         });
     }
 

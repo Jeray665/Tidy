@@ -45,6 +45,7 @@ public static class SysMon
     {
         lock (_gpuLock)
         {
+            if (_nvmlRetry == DateTime.MaxValue) return null; // no NVIDIA driver: nothing to protect, no need to list every process
             try
             {
                 if (DriverInstalling())
@@ -120,7 +121,8 @@ public static class Live
     public static void Watch(bool on)
     {
         var n = Interlocked.Add(ref _watchers, on ? 1 : -1);
-        _timer?.Change(on ? 0 : 5000, n > 0 ? 1000 : 5000);
+        // one view closing while another stays open (changing page, the tray panel over the window) must not pause it for 5 s
+        _timer?.Change(on ? 0 : n > 0 ? 1000 : 5000, n > 0 ? 1000 : 5000);
     }
 
     static void Tick()

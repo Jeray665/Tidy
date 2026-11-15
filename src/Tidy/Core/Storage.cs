@@ -138,25 +138,33 @@ public static class Storage
         {
             ct.ThrowIfCancellationRequested();
             progress?.Report($"Comparando {++done:N0} de {candidates.Count:N0} grupos de tamaño…");
-            foreach (var quick in list.GroupBy(f => Hash(f.FullName, quick: true)).Where(g => g.Key != null && g.Count() > 1))
-                foreach (var full in quick.GroupBy(f => Hash(f.FullName, quick: false)).Where(g => g.Key != null && g.Count() > 1))
+            foreach (var quick in list.GroupBy(f => Hash(f.FullName, quick: true, ct)).Where(g => g.Key != null && g.Count() > 1))
+                foreach (var full in quick.GroupBy(f => Hash(f.FullName, quick: false, ct)).Where(g => g.Key != null && g.Count() > 1))
                     groups.Add(new DuplicateGroup(size, full.OrderBy(f => f.CreationTime)
                         .Select(f => new FoundFile(f.FullName, f.Length, f.LastWriteTime, false)).ToList()));
         }
         return groups.OrderByDescending(g => g.Size * (g.Files.Count - 1)).ToList();
     }
 
-    static string? Hash(string path, bool quick)
+    static string? Hash(string path, bool quick, CancellationToken ct)
     {
         try
         {
             using var s = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 16);
-            if (!quick) return Convert.ToHexString(SHA256.HashData(s));
+            if (!quick)
+            {
+                // in pieces, so Cancel answers in the middle of a 50 GB file too
+                using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                var block = new byte[1 << 20];
+                for (int read; (read = s.Read(block, 0, block.Length)) > 0;) { ct.ThrowIfCancellationRequested(); sha.AppendData(block, 0, read); }
+                return Convert.ToHexString(sha.GetHashAndReset());
+            }
             var buf = new byte[1 << 17];
             var n = s.Read(buf, 0, 1 << 16);
             if (s.Length > 1 << 16) { s.Seek(-Math.Min(1 << 16, s.Length - n), SeekOrigin.End); n += s.Read(buf, n, 1 << 16); }
             return Convert.ToHexString(SHA256.HashData(buf.AsSpan(0, n)));
         }
+        catch (OperationCanceledException) { throw; }
         catch { return null; }
     }
 
@@ -309,8 +317,12 @@ public static class Processes
         return _desc[path] = d;
     }
 
-    static IEnumerable<Process> Instances(ProcInfo info) =>
-        Process.GetProcessesByName(info.Name).Where(p => string.Equals(Native.ProcessPath(p.Id), info.Path, StringComparison.OrdinalIgnoreCase));
+    static IEnumerable<Process> Instances(ProcInfo info)
+    {
+        foreach (var p in Process.GetProcessesByName(info.Name))
+            if (string.Equals(Native.ProcessPath(p.Id), info.Path, StringComparison.OrdinalIgnoreCase)) yield return p;
+            else p.Dispose();
+    }
 
     public static (int Closed, string Error) Close(ProcInfo info)
     {

@@ -35,7 +35,7 @@ public partial class StartupPage : Page
         UpdateSummary();
         Presets.Children.Clear();
         Presets.Children.Add(Ui.Text("Buscando lo que arranca solo…", "Muted"));
-        _candidates = await Task.Run(StartupPresets.Candidates);
+        _candidates = await Task.Run(() => StartupPresets.Candidates());
         ShowPresets();
     }
 

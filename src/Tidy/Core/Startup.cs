@@ -79,9 +79,9 @@ public static class StartupApps
     public static List<StartupApp> List()
     {
         var list = new List<StartupApp>();
-        var hkcu = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry64);
-        var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
-        var hklm32 = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32);
+        // Tidy is 64-bit, so the shared Registry.* keys are the 64-bit view; they stay open for the rows that keep them
+        RegistryKey hkcu = Registry.CurrentUser, hklm = Registry.LocalMachine;
+        using var hklm32 = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32);
         AddRun(list, hkcu, hkcu, "Run", "Usuario");
         AddRun(list, hklm, hklm, "Run", "Todos los usuarios");
         AddRun(list, hklm32, hklm, "Run32", "Todos los usuarios (32 bits)");
@@ -217,15 +217,18 @@ public static class Unneeded
     public static List<PresetItem> Candidates()
     {
         var list = new List<PresetItem>();
-        var on = Services.List().Where(s => !s.Protected && s.StartMode.StartsWith("Automático")).ToDictionary(s => s.Name, StringComparer.OrdinalIgnoreCase);
+        // listed once and shared with the startup presets below: each listing asks WMI / walks the whole Task Scheduler
+        var services = Services.List();
+        var tasks = ScheduledTasks.List();
+        var on = services.Where(s => !s.Protected && s.StartMode.StartsWith("Automático")).ToDictionary(s => s.Name, StringComparer.OrdinalIgnoreCase);
         foreach (var (name, mode, check, why) in WindowsServices)
             if (on.TryGetValue(name, out var s))
                 list.Add(new(PresetKind.Service, s.Display, mode == StartMode.Disabled ? "Servicio de Windows · se deshabilita" : "Servicio de Windows · pasa a manual", why,
                     1, () => Services.SetMode(name, mode), check));
-        foreach (var t in ScheduledTasks.List().Where(t => t.Enabled && t.CanChange && t.Hint != null && !t.Path.Equals(GamePassTask, StringComparison.OrdinalIgnoreCase)))
+        foreach (var t in tasks.Where(t => t.Enabled && t.CanChange && t.Hint != null && !t.Path.Equals(GamePassTask, StringComparison.OrdinalIgnoreCase)))
             list.Add(new(PresetKind.Task, t.Name, $"Tarea de Windows · {t.Folder}", t.Hint!, 1, () => ScheduledTasks.SetEnabled(t.Path, false)));
         // third-party services and tasks the startup presets would turn off (their startup apps stay on the startup page)
-        list.AddRange(StartupPresets.Candidates().Where(i => i.Kind != PresetKind.App));
+        list.AddRange(StartupPresets.Candidates(services, tasks).Where(i => i.Kind != PresetKind.App));
         return list;
     }
 }
@@ -299,7 +302,7 @@ public static class StartupPresets
         : 3;
 
     /// <summary>Everything the "Máximo" preset would change on this PC right now (lower presets take the items up to their level).</summary>
-    public static List<PresetItem> Candidates()
+    public static List<PresetItem> Candidates(List<ServiceInfo>? services = null, List<TaskInfo>? tasks = null)
     {
         var list = new List<PresetItem>();
         foreach (var a in StartupApps.List().Where(a => a.Enabled))
@@ -312,7 +315,7 @@ public static class StartupPresets
                     l, () => { StartupApps.SetEnabled(a, false); return (true, ""); }));
 
         var win = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-        foreach (var s in Services.List().Where(s => !s.Protected && s.StartMode.StartsWith("Automático")))
+        foreach (var s in (services ?? Services.List()).Where(s => !s.Protected && s.StartMode.StartsWith("Automático")))
         {
             var exe = StartupApps.ExeFromCommand(s.Path);
             if (exe == null || exe.StartsWith(win, StringComparison.OrdinalIgnoreCase) || !File.Exists(exe)) continue;
@@ -327,7 +330,7 @@ public static class StartupPresets
                     l, () => Services.SetMode(s.Name, StartMode.Manual)));
         }
 
-        foreach (var t in ScheduledTasks.List().Where(t => t.Enabled && t.CanChange && !t.Path.StartsWith(@"\Microsoft\Windows\", StringComparison.OrdinalIgnoreCase)))
+        foreach (var t in (tasks ?? ScheduledTasks.List()).Where(t => t.Enabled && t.CanChange && !t.Path.StartsWith(@"\Microsoft\Windows\", StringComparison.OrdinalIgnoreCase)))
             if (!Protect.IsMatch($"{t.Path} {t.Action}") && Telemetry.IsMatch($"{t.Path} {t.Action}"))
                 list.Add(new(PresetKind.Task, t.Name, StartupApps.ExeFromCommand(t.Action) is { } exe && FileVersionInfo(exe) is { Length: > 0 } c ? $"Tarea programada · {c}" : "Tarea programada",
                     "Tarea de telemetría o informes de errores. Se puede desactivar sin perder nada.", 1, () => ScheduledTasks.SetEnabled(t.Path, false)));

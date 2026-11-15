@@ -204,9 +204,10 @@ public static class Cleaner
             if (r.Category.StopsUpdateServices && restart == null) { skipped += r.Items.Count; continue; }
             try
             {
+                var realRoots = RealRoots(r.Roots);
                 foreach (var item in r.Items)
                 {
-                    if (TryDelete(item, r.Roots)) { deleted++; bytes += item.Size; list.AppendLine(item.Display); }
+                    if (TryDelete(item, r.Roots, realRoots)) { deleted++; bytes += item.Size; list.AppendLine(item.Display); }
                     else skipped++;
                 }
                 if (!r.Category.RecycleBin) RemoveEmptyDirs(r.Roots, DateTime.Now - r.Category.MinAge);
@@ -237,22 +238,47 @@ public static class Cleaner
 
     static bool IsReparse(string path) => File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint);
 
-    static bool TryDelete(CleanItem item, List<string> roots)
+    /// <summary>Tidy deletes as administrator inside folders any program can write to: a folder between the root and
+    /// the item swapped for a junction after the scan would send the delete somewhere else (C:\Windows…).</summary>
+    // ponytail: checked right before deleting; files are then re-verified through their handle (DeleteFileByHandle), folders are not.
+    static bool LinkInPath(string path, List<string> roots)
+    {
+        var full = Path.GetFullPath(path);
+        var root = roots.Select(r => Path.GetFullPath(r).TrimEnd('\\')).FirstOrDefault(r => full.StartsWith(r + "\\", StringComparison.OrdinalIgnoreCase));
+        if (root == null) return true;
+        for (var dir = Path.GetDirectoryName(full); dir != null && dir.Length >= root.Length; dir = Path.GetDirectoryName(dir))
+            if (IsReparse(dir)) return true;
+        return false;
+    }
+
+    /// <summary>Closes the race LinkInPath leaves open: opens the file itself, asks Windows where it really is and
+    /// deletes through that handle, so a folder swapped for a junction right now can't redirect the delete.</summary>
+    static bool DeleteFileByHandle(string path, List<string> realRoots)
+    {
+        // DELETE | FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES (the last one only for the read-only fallback)
+        using var h = Native.Open(path, 0x10000 | 0x80 | 0x100, noFollow: true);
+        if (h.IsInvalid) return false; // in use (sharing violation), access denied or already gone
+        if (Native.Attributes(h) is not { } a || a.HasFlag(FileAttributes.ReparsePoint) || a.HasFlag(FileAttributes.Directory)) return false;
+        var real = Native.FinalPath(h);
+        if (real == null || !IsUnder(real, realRoots)) { Store.Log($"Cleanup: BLOCKED, the file really lives outside the scanned folders: {path} -> {real}"); return false; }
+        return Native.DeleteByHandle(h);
+    }
+
+    /// <summary>Where each root really is, asked once per cleanup (not per file: there can be thousands).</summary>
+    static List<string> RealRoots(List<string> roots) =>
+        roots.Select(r => { using var rh = Native.Open(r, 0x80 /* FILE_READ_ATTRIBUTES */, noFollow: false); return rh.IsInvalid ? null : Native.FinalPath(rh); }).OfType<string>().ToList();
+
+    static bool TryDelete(CleanItem item, List<string> roots, List<string> realRoots)
     {
         try
         {
             if (!IsUnder(item.Path, roots)) { Store.Log($"Cleanup: BLOCKED outside the allow list: {item.Path}"); return false; }
+            if (LinkInPath(item.Path, roots)) { Store.Log($"Cleanup: BLOCKED, a folder on the way became a link after the scan: {item.Path}"); return false; }
             if (item.IsDir)
             {
                 if (Directory.Exists(item.Path) && !IsReparse(item.Path)) DeleteTree(item.Path);
             }
-            else if (File.Exists(item.Path))
-            {
-                var attrs = File.GetAttributes(item.Path);
-                if (attrs.HasFlag(FileAttributes.ReparsePoint)) return false;
-                if (attrs.HasFlag(FileAttributes.ReadOnly)) File.SetAttributes(item.Path, attrs & ~FileAttributes.ReadOnly);
-                File.Delete(item.Path);
-            }
+            else if (File.Exists(item.Path) && !DeleteFileByHandle(item.Path, realRoots)) return false;
             if (item.Companion != null && IsUnder(item.Companion, roots)) File.Delete(item.Companion);
             return true;
         }

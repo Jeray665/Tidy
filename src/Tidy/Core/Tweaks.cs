@@ -680,7 +680,7 @@ public static class Tweaks
         if (!backup.ContainsKey(t.Id))
         {
             backup[t.Id] = ops.Select(Capture).ToList();
-            Store.WriteJson(BackupFile, backup); // backup hits disk before the first write
+            Store.WriteJson(BackupFile, backup, secure: true); // backup hits disk before the first write
         }
         try
         {
@@ -771,12 +771,12 @@ public static class Tweaks
         {
             foreach (var s in saved)
             {
-                // the backup lives in a user-writable folder: only ever restore the exact values this tweak owns
+                // the backup is in the admin-only folder, but still: only ever restore the exact values this tweak owns
                 if (t.Ops.Any(o => o.Key == s.Key && o.Name == s.Name)) Restore(s);
                 else Store.Log($"Tweak: BLOCKED foreign value in the backup: {s.Key}\\{s.Name}");
             }
             backup.Remove(t.Id);
-            Store.WriteJson(BackupFile, backup);
+            Store.WriteJson(BackupFile, backup, secure: true);
         }
         else
         {
@@ -788,7 +788,7 @@ public static class Tweaks
     }
 
     static Dictionary<string, List<SavedValue>> LoadBackup() =>
-        Store.ReadJson<Dictionary<string, List<SavedValue>>>(BackupFile) ?? [];
+        Store.ReadJson<Dictionary<string, List<SavedValue>>>(BackupFile, secure: true) ?? [];
 
     // ---------- registry helpers ----------
     static RegistryKey Hive(string key, out string sub)

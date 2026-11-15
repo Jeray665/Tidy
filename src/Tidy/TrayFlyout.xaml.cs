@@ -115,10 +115,12 @@ public partial class TrayFlyout : FluentWindow
     async void GameNow_Click(object sender, RoutedEventArgs e)
     {
         GameNowBtn.IsEnabled = false;
-        if (GameMode.Current != null) await Task.Run(GameMode.Stop);
-        else await Task.Run(GameMode.StartManual);
-        GameNowBtn.IsEnabled = true;
-        ShowGame();
+        try
+        {
+            if (GameMode.Current != null) await Task.Run(GameMode.Stop);
+            else await Task.Run(GameMode.StartManual);
+        }
+        finally { GameNowBtn.IsEnabled = true; ShowGame(); }
     }
 
     void BuildPlans()
@@ -145,11 +147,15 @@ public partial class TrayFlyout : FluentWindow
     {
         TopRefresh.IsEnabled = false;
         TopNote.Text = "Midiendo…";
-        var top = await Task.Run(() => Core.Background.Top(TimeSpan.FromSeconds(1.5), 5));
-        TopList.Children.Clear();
-        foreach (var app in top) TopList.Children.Add(TopRow(app));
-        TopNote.Text = top.Count == 0 ? "No hay programas tuyos gastando ahora mismo." : "Los procesos de Windows no salen aquí: no se deben cerrar.";
-        TopRefresh.IsEnabled = true;
+        try
+        {
+            var top = await Task.Run(() => Core.Background.Top(TimeSpan.FromSeconds(1.5), 5));
+            TopList.Children.Clear();
+            foreach (var app in top) TopList.Children.Add(TopRow(app));
+            TopNote.Text = top.Count == 0 ? "No hay programas tuyos gastando ahora mismo." : "Los procesos de Windows no salen aquí: no se deben cerrar.";
+        }
+        catch (Exception ex) { TopNote.Text = "No se pudo medir."; Store.Log($"Tray: top programs failed: {ex.Message}"); }
+        finally { TopRefresh.IsEnabled = true; }
     }
 
     void TopRefresh_Click(object sender, RoutedEventArgs e) => ShowTop();
@@ -307,7 +313,9 @@ public partial class TrayFlyout : FluentWindow
     async void ConfirmClean_Click(object sender, RoutedEventArgs e)
     {
         ConfirmBtn.IsEnabled = false;
-        var report = await Views.CleanerPage.CleanConfirmed(_confirming);
+        Cleaner.CleanReport report;
+        try { report = await Views.CleanerPage.CleanConfirmed(_confirming); }
+        catch { ConfirmBtn.IsEnabled = true; throw; } // the error shows as a toast; the button must not stay dead
         CleanResult.Text = $"Recuperados {Store.FormatBytes(report.Bytes)}: {report.Deleted:N0} archivos borrados" +
                            (report.Skipped > 0 ? $", {report.Skipped:N0} omitidos porque estaban en uso." : ".");
         CleanResult.Visibility = Visibility.Visible;
@@ -396,9 +404,8 @@ public partial class TrayFlyout : FluentWindow
     {
         UpdCheckBtn.IsEnabled = false;
         UpdApps.Text = "Apps: comprobando…";
-        await Task.Run(Winget.Upgrades);
-        UpdCheckBtn.IsEnabled = true;
-        ShowUpdates();
+        try { await Task.Run(Winget.Upgrades); }
+        finally { UpdCheckBtn.IsEnabled = true; ShowUpdates(); }
     }
 
     void Updates_Click(object sender, RoutedEventArgs e) =>
@@ -439,8 +446,9 @@ public partial class TrayFlyout : FluentWindow
     async void Boost_Click(object sender, RoutedEventArgs e)
     {
         BoostBtn.IsEnabled = false;
-        var freed = await Task.Run(() => Memory.PurgeStandby("menú de la bandeja"));
-        BoostBtn.IsEnabled = true;
+        long freed;
+        try { freed = await Task.Run(() => Memory.PurgeStandby("menú de la bandeja")); }
+        finally { BoostBtn.IsEnabled = true; }
         BoostResult.Text = freed >= 0 ? $"✓ {freed:N0} MB de memoria liberados" : "No se pudo: Tidy necesita permisos de administrador";
         BoostResult.Visibility = Visibility.Visible;
     }
