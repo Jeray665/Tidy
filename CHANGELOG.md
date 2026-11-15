@@ -1,5 +1,10 @@
 # Novedades de Tidy
 
+## 1.3.2
+- Más seguro: la limpieza comprueba dónde está de verdad cada archivo antes de borrarlo, winget se ejecuta solo desde su carpeta protegida de Windows, los desinstaladores de apps instaladas solo para tu usuario se abren sin permisos de administrador y la copia de las optimizaciones se guarda en la carpeta protegida de Tidy.
+- Más ligero: menos trabajo en segundo plano en PCs sin gráfica NVIDIA, Inicio carga más rápido y la búsqueda de duplicados se puede cancelar aunque esté leyendo un archivo enorme.
+- Las novedades salen en tu idioma (antes salían siempre en español), las gráficas en directo ya no se paran unos segundos al cambiar de página y la fecha de la última actualización de Windows se muestra bien.
+
 ## 1.3.1
 - Tidy ya no se cierra con un error del sistema (0xc0000005) al actualizar el driver de NVIDIA: mientras se instala un driver deja de leer la gráfica y vuelve a hacerlo al terminar.
 

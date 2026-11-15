@@ -192,7 +192,8 @@ public static class Ui
         {
             panel.Children.Add(new TextBlock { Text = $"Versión {v}", FontWeight = FontWeights.SemiBold, FontSize = 15, Margin = new Thickness(0, panel.Children.Count == 0 ? 0 : 14, 0, 6) });
             foreach (var i in items)
-                panel.Children.Add(new TextBlock { Text = "•  " + i, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 5), LineHeight = 20 });
+                // translated before the bullet goes on: the translations are keyed by the bare CHANGELOG line
+                panel.Children.Add(new TextBlock { Text = "•  " + I18n.T(i), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 5), LineHeight = 20 });
         }
         return new ScrollViewer { Content = panel, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
